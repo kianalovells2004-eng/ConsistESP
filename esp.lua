@@ -1,5 +1,5 @@
 -- esp.lua
--- ESP Module - Pure ESP logic, no UI dependencies.
+-- ESP Module - Pure ESP logic, optimized with Team Check & Corner Boxes
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -9,10 +9,14 @@ local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
+local math_min, math_max, math_floor, math_huge = math.min, math.max, math.floor, math.huge
+
 local ESP = {
     Enabled = false,
     BoxEnabled = false,
+    CornerBoxEnabled = false,
     BoxFillEnabled = false,
+    TeamCheckEnabled = false,
     NameEnabled = false,
     ItemEnabled = false,
     ThreeDBoxEnabled = false,
@@ -40,11 +44,10 @@ local function newDrawing(type, properties)
     return drawing
 end
 
--- Health color scheme (based on % of MaxHealth, so 100 = full)
-local HEALTH_COLOR_FULL      = Color3.fromRGB(0, 255, 0)    -- 100     -> bright green
-local HEALTH_COLOR_MIDYELLOW = Color3.fromRGB(255, 255, 0)  -- 70 - 65 -> mid yellow
-local HEALTH_COLOR_ORANGE    = Color3.fromRGB(255, 185, 0)  -- 50 - 45 -> yellowish / more orangey
-local HEALTH_COLOR_RED       = Color3.fromRGB(255, 50, 50)  -- 15 - 10 -> red (stays red below)
+local HEALTH_COLOR_FULL      = Color3.fromRGB(0, 255, 0)
+local HEALTH_COLOR_MIDYELLOW = Color3.fromRGB(255, 255, 0)
+local HEALTH_COLOR_ORANGE    = Color3.fromRGB(255, 185, 0)
+local HEALTH_COLOR_RED       = Color3.fromRGB(255, 50, 50)
 
 local function lerp(a, b, t)
     return a + (b - a) * t
@@ -54,12 +57,6 @@ local function lerpColor(c1, c2, t)
     return Color3.new(lerp(c1.R, c2.R, t), lerp(c1.G, c2.G, t), lerp(c1.B, c2.B, t))
 end
 
--- Health fraction (0 - 1) -> color.
--- Holds the color inside each requested range and blends smoothly between them:
---   100      -> bright green
---   70 - 65  -> mid yellow
---   50 - 45  -> yellowish / more orangey
---   15 - 10  -> red
 local function getHealthColor(hp)
     if hp >= 0.70 then
         return lerpColor(HEALTH_COLOR_MIDYELLOW, HEALTH_COLOR_FULL, (hp - 0.70) / 0.30)
@@ -90,6 +87,8 @@ local function createDrawings(player)
         HealthText = newDrawing("Text", { Color = ESP.TextColor, Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = Drawing.Fonts.UI, Transparency = 1 }),
         ThreeDLines = {},
         ThreeDOutlines = {},
+        CornerLines = {},
+        CornerOutlines = {},
         TracerLocal = newDrawing("Line", { Color = ESP.TracerColor, Thickness = 1.5, Transparency = 1 }),
         TracerMouse = newDrawing("Line", { Color = ESP.TracerColor, Thickness = 1.5, Transparency = 1 }),
         TracerTop = newDrawing("Line", { Color = ESP.TracerColor, Thickness = 1.5, Transparency = 1 }),
@@ -99,6 +98,11 @@ local function createDrawings(player)
     for i = 1, 12 do
         drawings.ThreeDOutlines[i] = newDrawing("Line", { Color = Color3.fromRGB(0, 0, 0), Thickness = 1.5, Transparency = 0.5 })
         drawings.ThreeDLines[i] = newDrawing("Line", { Color = ESP.TracerColor, Thickness = 1.2, Transparency = 1 })
+    end
+
+    for i = 1, 8 do
+        drawings.CornerOutlines[i] = newDrawing("Line", { Color = Color3.fromRGB(0, 0, 0), Thickness = 3, Transparency = 0.5 })
+        drawings.CornerLines[i] = newDrawing("Line", { Color = ESP.BoxColor, Thickness = 1.5, Transparency = 1 })
     end
 
     return drawings
@@ -119,67 +123,20 @@ local function hideAllDrawings(drawings)
         drawings.ThreeDLines[i].Visible = false
         drawings.ThreeDOutlines[i].Visible = false
     end
+    for i = 1, 8 do
+        drawings.CornerLines[i].Visible = false
+        drawings.CornerOutlines[i].Visible = false
+    end
     drawings.TracerLocal.Visible = false
     drawings.TracerMouse.Visible = false
     drawings.TracerTop.Visible = false
     drawings.TracerBottom.Visible = false
 end
 
--- Toggle functions
-
--- Box ESP. Turning it OFF also force-disables Box Fill (fill depends on the box).
-function ESP:ToggleBox(state)
-    self.BoxEnabled = state
-    if not state then
-        self.BoxFillEnabled = false
-    end
-    if not state then
-        for _, drawings in pairs(self.Drawings) do
-            drawings.Box.Visible = false
-            drawings.BoxOutline.Visible = false
-            drawings.BoxFill.Visible = false
-        end
-    end
-end
-
--- Box Fill. Can only be enabled while Box ESP is enabled.
-function ESP:ToggleBoxFill(state)
-    if state and not self.BoxEnabled then
-        -- Dependency: fill requires the 2D box. Silently refuse.
-        self.BoxFillEnabled = false
-        return
-    end
-    self.BoxFillEnabled = state
-    if not state then
-        for _, drawings in pairs(self.Drawings) do
-            drawings.BoxFill.Visible = false
-        end
-    end
-end
-
-function ESP:ToggleName(state) self.NameEnabled = state if not state then for _, drawings in pairs(self.Drawings) do drawings.NameText.Visible = false end end end
-function ESP:ToggleItem(state) self.ItemEnabled = state if not state then for _, drawings in pairs(self.Drawings) do drawings.ItemText.Visible = false end end end
-function ESP:Toggle3DBox(state) self.ThreeDBoxEnabled = state if not state then for _, drawings in pairs(self.Drawings) do for i = 1, 12 do drawings.ThreeDLines[i].Visible = false drawings.ThreeDOutlines[i].Visible = false end end end end
-function ESP:ToggleTracerLocal(state) self.TracerLocalEnabled = state if not state then for _, drawings in pairs(self.Drawings) do drawings.TracerLocal.Visible = false end end end
-function ESP:ToggleTracerMouse(state) self.TracerMouseEnabled = state if not state then for _, drawings in pairs(self.Drawings) do drawings.TracerMouse.Visible = false end end end
-function ESP:ToggleTracerTop(state) self.TracerTopEnabled = state if not state then for _, drawings in pairs(self.Drawings) do drawings.TracerTop.Visible = false end end end
-function ESP:ToggleTracerBottom(state) self.TracerBottomEnabled = state if not state then for _, drawings in pairs(self.Drawings) do drawings.TracerBottom.Visible = false end end end
-function ESP:ToggleDistance(state) self.DistanceEnabled = state if not state then for _, drawings in pairs(self.Drawings) do drawings.DistanceText.Visible = false end end end
-function ESP:ToggleHealthBar(state) self.HealthBarEnabled = state if not state then for _, drawings in pairs(self.Drawings) do drawings.HealthBarOutline.Visible = false drawings.HealthBarBack.Visible = false drawings.HealthBarFill.Visible = false end end end
-function ESP:ToggleHealthText(state) self.HealthTextEnabled = state if not state then for _, drawings in pairs(self.Drawings) do drawings.HealthText.Visible = false end end end
-
-function ESP:SetCustomName(playerName, text) self.CustomNames[playerName] = text end
-function ESP:ClearCustomName(playerName) self.CustomNames[playerName] = nil end
-
-function ESP:SetBoxColor(color) self.BoxColor = color for _, drawings in pairs(self.Drawings) do drawings.Box.Color = color end end
-function ESP:SetBoxFillColor(color) self.BoxFillColor = color for _, drawings in pairs(self.Drawings) do drawings.BoxFill.Color = color end end
--- Note: HealthText is no longer affected here, its color is health-driven now.
-function ESP:SetTextColor(color) self.TextColor = color for _, drawings in pairs(self.Drawings) do drawings.NameText.Color = color drawings.ItemText.Color = color drawings.DistanceText.Color = color end end
-function ESP:SetTracerColor(color) self.TracerColor = color for _, drawings in pairs(self.Drawings) do drawings.TracerLocal.Color = color drawings.TracerMouse.Color = color drawings.TracerTop.Color = color drawings.TracerBottom.Color = color for i = 1, 12 do drawings.ThreeDLines[i].Color = color end end end
-
 function ESP:Toggle(state)
     self.Enabled = state
-    self:ToggleBox(state) -- also handles BoxFill dependency (box off -> fill off)
+    self:ToggleBox(state)
+    self:ToggleCornerBox(state)
     self:ToggleBoxFill(state and self.BoxEnabled)
     self:ToggleName(state)
     self:ToggleItem(state)
@@ -192,6 +149,64 @@ function ESP:Toggle(state)
     self:ToggleHealthBar(state)
     self:ToggleHealthText(state)
 end
+
+function ESP:ToggleBox(state)
+    self.BoxEnabled = state
+    if not state then
+        self.BoxFillEnabled = false
+        for _, drawings in pairs(self.Drawings) do
+            drawings.Box.Visible = false
+            drawings.BoxOutline.Visible = false
+            drawings.BoxFill.Visible = false
+        end
+    end
+end
+
+function ESP:ToggleCornerBox(state)
+    self.CornerBoxEnabled = state
+    if not state then
+        for _, drawings in pairs(self.Drawings) do
+            for i = 1, 8 do
+                drawings.CornerLines[i].Visible = false
+                drawings.CornerOutlines[i].Visible = false
+            end
+        end
+    end
+end
+
+function ESP:ToggleBoxFill(state)
+    if state and not self.BoxEnabled then
+        self.BoxFillEnabled = false
+        return
+    end
+    self.BoxFillEnabled = state
+    if not state then
+        for _, drawings in pairs(self.Drawings) do
+            drawings.BoxFill.Visible = false
+        end
+    end
+end
+
+function ESP:ToggleTeamCheck(state) self.TeamCheckEnabled = state end
+
+function ESP:ToggleName(state) self.NameEnabled = state if not state then for _, d in pairs(self.Drawings) do d.NameText.Visible = false end end end
+function ESP:ToggleItem(state) self.ItemEnabled = state if not state then for _, d in pairs(self.Drawings) do d.ItemText.Visible = false end end end
+function ESP:Toggle3DBox(state) self.ThreeDBoxEnabled = state if not state then for _, d in pairs(self.Drawings) do for i = 1, 12 do d.ThreeDLines[i].Visible = false d.ThreeDOutlines[i].Visible = false end end end end
+function ESP:ToggleTracerLocal(state) self.TracerLocalEnabled = state if not state then for _, d in pairs(self.Drawings) do d.TracerLocal.Visible = false end end end
+function ESP:ToggleTracerMouse(state) self.TracerMouseEnabled = state if not state then for _, d in pairs(self.Drawings) do d.TracerMouse.Visible = false end end end
+function ESP:ToggleTracerTop(state) self.TracerTopEnabled = state if not state then for _, d in pairs(self.Drawings) do d.TracerTop.Visible = false end end end
+function ESP:ToggleTracerBottom(state) self.TracerBottomEnabled = state if not state then for _, d in pairs(self.Drawings) do d.TracerBottom.Visible = false end end end
+function ESP:ToggleDistance(state) self.DistanceEnabled = state if not state then for _, d in pairs(self.Drawings) do d.DistanceText.Visible = false end end end
+function ESP:ToggleHealthBar(state) self.HealthBarEnabled = state if not state then for _, d in pairs(self.Drawings) do d.HealthBarOutline.Visible = false d.HealthBarBack.Visible = false d.HealthBarFill.Visible = false end end end
+function ESP:ToggleHealthText(state) self.HealthTextEnabled = state if not state then for _, d in pairs(self.Drawings) do d.HealthText.Visible = false end end end
+
+function ESP:SetCustomName(playerName, text) self.CustomNames[playerName] = text end
+function ESP:ClearCustomName(playerName) self.CustomNames[playerName] = nil end
+
+function ESP:SetBoxColor(color) self.BoxColor = color for _, d in pairs(self.Drawings) do d.Box.Color = color for i=1,8 do d.CornerLines[i].Color = color end end end
+function ESP:SetBoxFillColor(color) self.BoxFillColor = color for _, d in pairs(self.Drawings) do d.BoxFill.Color = color end end
+function ESP:SetTextColor(color) self.TextColor = color for _, d in pairs(self.Drawings) do d.NameText.Color = color d.ItemText.Color = color d.DistanceText.Color = color end end
+function ESP:SetTracerColor(color) self.TracerColor = color for _, d in pairs(self.Drawings) do d.TracerLocal.Color = color d.TracerMouse.Color = color d.TracerTop.Color = color d.TracerBottom.Color = color for i = 1, 12 do d.ThreeDLines[i].Color = color end end end
 
 function ESP:Unload()
     self:Toggle(false)
@@ -208,16 +223,16 @@ function ESP:Unload()
 end
 
 local function getCharacterBounds(character)
-    local min = Vector3.new(math.huge, math.huge, math.huge)
-    local max = Vector3.new(-math.huge, -math.huge, -math.huge)
+    local min = Vector3.new(math_huge, math_huge, math_huge)
+    local max = Vector3.new(-math_huge, -math_huge, -math_huge)
     local foundPart = false
     for _, part in ipairs(character:GetChildren()) do
         if part:IsA("BasePart") then
             foundPart = true
             local partMin = part.Position - part.Size / 2
             local partMax = part.Position + part.Size / 2
-            min = Vector3.new(math.min(min.X, partMin.X), math.min(min.Y, partMin.Y), math.min(min.Z, partMin.Z))
-            max = Vector3.new(math.max(max.X, partMax.X), math.max(max.Y, partMax.Y), math.max(max.Z, partMax.Z))
+            min = Vector3.new(math_min(min.X, partMin.X), math_min(min.Y, partMin.Y), math_min(min.Z, partMin.Z))
+            max = Vector3.new(math_max(max.X, partMax.X), math_max(max.Y, partMax.Y), math_max(max.Z, partMax.Z))
         end
     end
     if not foundPart then return nil end
@@ -242,6 +257,35 @@ local function update3DLines(drawings, corners)
     end
 end
 
+local function updateCornerBox(drawings, screenMin, screenMax, boxColor)
+    local cornerLen = math_min((screenMax.X - screenMin.X), (screenMax.Y - screenMin.Y)) * 0.25
+    local tl = screenMin
+    local tr = Vector2.new(screenMax.X, screenMin.Y)
+    local bl = Vector2.new(screenMin.X, screenMax.Y)
+    local br = screenMax
+
+    -- 1: TL-H, 2: TL-V, 3: TR-H, 4: TR-V, 5: BL-H, 6: BL-V, 7: BR-H, 8: BR-V
+    local positions = {
+        {From = tl, To = tl + Vector2.new(cornerLen, 0)}, -- TL-H
+        {From = tl, To = tl + Vector2.new(0, cornerLen)}, -- TL-V
+        {From = tr, To = tr - Vector2.new(cornerLen, 0)}, -- TR-H
+        {From = tr, To = tr + Vector2.new(0, cornerLen)}, -- TR-V
+        {From = bl, To = bl + Vector2.new(cornerLen, 0)}, -- BL-H
+        {From = bl, To = bl - Vector2.new(0, cornerLen)}, -- BL-V
+        {From = br, To = br - Vector2.new(cornerLen, 0)}, -- BR-H
+        {From = br, To = br - Vector2.new(0, cornerLen)}  -- BR-V
+    }
+
+    for i, pos in ipairs(positions) do
+        drawings.CornerOutlines[i].From = pos.From
+        drawings.CornerOutlines[i].To = pos.To
+        drawings.CornerOutlines[i].Visible = true
+        drawings.CornerLines[i].From = pos.From
+        drawings.CornerLines[i].To = pos.To
+        drawings.CornerLines[i].Visible = true
+    end
+end
+
 local function getTargetScreenPos(character)
     local rootPart = character:FindFirstChild("HumanoidRootPart")
     if not rootPart then return nil, false end
@@ -250,13 +294,24 @@ end
 
 RunService.RenderStepped:Connect(function()
     local mousePos = UserInputService:GetMouseLocation()
+    local camPos = Camera.CFrame.Position
+    local localTeam = LocalPlayer.Team
+
     for _, player in ipairs(Players:GetPlayers()) do
         if player == LocalPlayer then continue end
+        
+        -- Team Check Optimization
+        if ESP.TeamCheckEnabled and localTeam and player.Team == localTeam then
+            local drawings = ESP.Drawings[player]
+            if drawings then hideAllDrawings(drawings) end
+            continue
+        end
+
         local character = player.Character
         local humanoid = character and character:FindFirstChildOfClass("Humanoid")
         local rootPart = character and character:FindFirstChild("HumanoidRootPart")
         local isValid = character and humanoid and humanoid.Health > 0 and rootPart
-        local shouldDrawAny = (ESP.BoxEnabled or ESP.BoxFillEnabled or ESP.NameEnabled or ESP.ItemEnabled or ESP.ThreeDBoxEnabled
+        local shouldDrawAny = (ESP.BoxEnabled or ESP.CornerBoxEnabled or ESP.BoxFillEnabled or ESP.NameEnabled or ESP.ItemEnabled or ESP.ThreeDBoxEnabled
             or ESP.TracerLocalEnabled or ESP.TracerMouseEnabled or ESP.TracerTopEnabled or ESP.TracerBottomEnabled
             or ESP.DistanceEnabled or ESP.HealthBarEnabled or ESP.HealthTextEnabled) and isValid
 
@@ -297,11 +352,11 @@ RunService.RenderStepped:Connect(function()
             continue
         end
 
-        local screenMin = Vector2.new(math.huge, math.huge)
-        local screenMax = Vector2.new(-math.huge, -math.huge)
+        local screenMin = Vector2.new(math_huge, math_huge)
+        local screenMax = Vector2.new(-math_huge, -math_huge)
         for _, corner in ipairs(screenCorners) do
-            screenMin = Vector2.new(math.min(screenMin.X, corner.X), math.min(screenMin.Y, corner.Y))
-            screenMax = Vector2.new(math.max(screenMax.X, corner.X), math.max(screenMax.Y, corner.Y))
+            screenMin = Vector2.new(math_min(screenMin.X, corner.X), math_min(screenMin.Y, corner.Y))
+            screenMax = Vector2.new(math_max(screenMax.X, corner.X), math_max(screenMax.Y, corner.Y))
         end
 
         -- Box ESP
@@ -317,8 +372,17 @@ RunService.RenderStepped:Connect(function()
             drawings.Box.Visible = false
             drawings.BoxOutline.Visible = false
         end
+        
+        -- Corner Box
+        if ESP.CornerBoxEnabled then
+            updateCornerBox(drawings, screenMin, screenMax, ESP.BoxColor)
+        else
+            for i = 1, 8 do
+                drawings.CornerLines[i].Visible = false
+                drawings.CornerOutlines[i].Visible = false
+            end
+        end
 
-        -- Box Fill (guarded: only draws while the box itself is enabled)
         if ESP.BoxFillEnabled and ESP.BoxEnabled then
             drawings.BoxFill.Size = Vector2.new(screenMax.X - screenMin.X, screenMax.Y - screenMin.Y)
             drawings.BoxFill.Position = screenMin
@@ -327,7 +391,6 @@ RunService.RenderStepped:Connect(function()
             drawings.BoxFill.Visible = false
         end
 
-        -- Name
         if ESP.NameEnabled then
             local name = ESP.CustomNames[player.Name] or player.Name
             drawings.NameText.Text = name
@@ -337,9 +400,6 @@ RunService.RenderStepped:Connect(function()
             drawings.NameText.Visible = false
         end
 
-        -- Item / Tool ESP
-        -- Shows the tool(s) the player is holding, to the right of the box,
-        -- vertically centered (below the health number which sits at the top).
         if ESP.ItemEnabled then
             local toolNames = {}
             for _, child in ipairs(character:GetChildren()) do
@@ -350,10 +410,7 @@ RunService.RenderStepped:Connect(function()
             if #toolNames > 0 then
                 drawings.ItemText.Text = table.concat(toolNames, ", ")
                 local textBounds = drawings.ItemText.TextBounds
-                drawings.ItemText.Position = Vector2.new(
-                    screenMax.X + 4 + textBounds.X / 2,
-                    (screenMin.Y + screenMax.Y) / 2
-                )
+                drawings.ItemText.Position = Vector2.new(screenMax.X + 4 + textBounds.X / 2, (screenMin.Y + screenMax.Y) / 2)
                 drawings.ItemText.Visible = true
             else
                 drawings.ItemText.Visible = false
@@ -362,9 +419,8 @@ RunService.RenderStepped:Connect(function()
             drawings.ItemText.Visible = false
         end
 
-        -- Distance
         if ESP.DistanceEnabled then
-            local dist = math.floor((Camera.CFrame.Position - rootPart.Position).Magnitude)
+            local dist = math_floor((camPos - rootPart.Position).Magnitude)
             drawings.DistanceText.Text = dist .. "m"
             drawings.DistanceText.Position = Vector2.new((screenMin.X + screenMax.X) / 2, screenMax.Y + 4 + drawings.DistanceText.TextBounds.Y / 2)
             drawings.DistanceText.Visible = true
@@ -372,7 +428,6 @@ RunService.RenderStepped:Connect(function()
             drawings.DistanceText.Visible = false
         end
 
-        -- Health
         if ESP.HealthBarEnabled or ESP.HealthTextEnabled then
             local hp = math.clamp(humanoid.Health / math.max(humanoid.MaxHealth, 1), 0, 1)
             local barWidth = 3
@@ -380,7 +435,6 @@ RunService.RenderStepped:Connect(function()
             local barX = screenMin.X - barWidth - 5
 
             if ESP.HealthBarEnabled then
-                -- Outline (same style as the box ESP outline)
                 drawings.HealthBarOutline.Size = Vector2.new(barWidth, barHeight) + Vector2.new(2, 2)
                 drawings.HealthBarOutline.Position = Vector2.new(barX, screenMin.Y) - Vector2.new(1, 1)
                 drawings.HealthBarOutline.Visible = true
@@ -401,15 +455,10 @@ RunService.RenderStepped:Connect(function()
             end
 
             if ESP.HealthTextEnabled then
-                drawings.HealthText.Text = "[" .. math.floor(humanoid.Health) .. "]"
+                drawings.HealthText.Text = "[" .. math_floor(humanoid.Health) .. "]"
                 drawings.HealthText.Color = getHealthColor(hp)
-                -- Anchor the text fully ABOVE the top edge of the box.
-                -- This keeps it at the top no matter how small the box gets when zoomed out.
                 local textBounds = drawings.HealthText.TextBounds
-                drawings.HealthText.Position = Vector2.new(
-                    screenMax.X + 4 + textBounds.X / 2,
-                    screenMin.Y - 2 - textBounds.Y / 2
-                )
+                drawings.HealthText.Position = Vector2.new(screenMax.X + 4 + textBounds.X / 2, screenMin.Y - 2 - textBounds.Y / 2)
                 drawings.HealthText.Visible = true
             else
                 drawings.HealthText.Visible = false
@@ -421,7 +470,6 @@ RunService.RenderStepped:Connect(function()
             drawings.HealthText.Visible = false
         end
 
-        -- 3D Box
         if ESP.ThreeDBoxEnabled then
             update3DLines(drawings, screenCorners)
         else
@@ -431,7 +479,6 @@ RunService.RenderStepped:Connect(function()
             end
         end
 
-        -- Tracers
         local targetScreen, targetOnScreen = getTargetScreenPos(character)
         if targetScreen and targetOnScreen then
             if ESP.TracerLocalEnabled then
@@ -488,24 +535,13 @@ end)
 Players.PlayerRemoving:Connect(function(player)
     local drawings = ESP.Drawings[player]
     if drawings then
-        drawings.Box:Remove()
-        drawings.BoxOutline:Remove()
-        drawings.BoxFill:Remove()
-        drawings.NameText:Remove()
-        drawings.ItemText:Remove()
-        drawings.DistanceText:Remove()
-        drawings.HealthBarOutline:Remove()
-        drawings.HealthBarBack:Remove()
-        drawings.HealthBarFill:Remove()
-        drawings.HealthText:Remove()
-        for i = 1, 12 do
-            drawings.ThreeDLines[i]:Remove()
-            drawings.ThreeDOutlines[i]:Remove()
+        for _, d in pairs(drawings) do
+            if typeof(d) == "table" then
+                for _, subD in ipairs(d) do subD:Remove() end
+            elseif typeof(d) ~= "nil" then
+                d:Remove()
+            end
         end
-        drawings.TracerLocal:Remove()
-        drawings.TracerMouse:Remove()
-        drawings.TracerTop:Remove()
-        drawings.TracerBottom:Remove()
         ESP.Drawings[player] = nil
     end
 end)
