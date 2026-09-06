@@ -56,6 +56,9 @@ leftSection:AddToggle({
                 if library.Flags.BoxStreak then
                     library.Flags.BoxStreak:SetValue(false)
                 end
+                if library.Flags.StreakGlow then
+                    library.Flags.StreakGlow:SetValue(false)
+                end
             end)
         end
     end
@@ -101,6 +104,28 @@ leftSection:AddToggle({
             return
         end
         ESP:ToggleBoxStreak(value)
+    end
+})
+
+leftSection:AddToggle({
+    Name = "Streak Glow",
+    Flag = "StreakGlow",
+    Value = true,
+    Callback = function(value)
+        ESP:ToggleStreakGlow(value)
+    end
+})
+
+-- if your Pepsi UI build errors on this slider, just delete the block
+-- (slider option names vary slightly between builds of the library)
+leftSection:AddSlider({
+    Name = "Streak Speed",
+    Flag = "StreakSpeed",
+    Min = 1,
+    Max = 10,
+    Value = 1,
+    Callback = function(value)
+        ESP:SetStreakSpeed(value)
     end
 })
 
@@ -290,7 +315,7 @@ colorSection:AddColorpicker({
 -- 8. Theme Designer
 window:CreateDesigner({
     Credit = true,
-    Info = "Consist ESP v1.5"
+    Info = "Consist ESP v1.6"
 })
 
 -- 9. Unload
@@ -298,4 +323,4 @@ window.Hide = function()
     ESP:Unload()
 end
 
-print("Consist ESP Loaded Successfully (v1.5)!")
+print("Consist ESP Loaded Successfully (v1.6)!")
