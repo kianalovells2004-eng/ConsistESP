@@ -115,6 +115,17 @@ leftSection:AddSlider({
     end
 })
 
+-- Font Dropdown
+leftSection:AddDropdown({
+    Name = "Text Font",
+    Flag = "TextFont",
+    Values = {"UI", "System", "Plex", "Monospace", "Arial"},
+    Value = "UI",
+    Callback = function(value)
+        ESP:SetFont(Drawing.Fonts[value])
+    end
+})
+
 leftSection:AddToggle({
     Name = "Name ESP",
     Flag = "NameESP",
@@ -283,7 +294,7 @@ colorSection:AddColorpicker({
 -- 8. Theme Designer
 window:CreateDesigner({
     Credit = true,
-    Info = "Consist ESP v1.8"
+    Info = "Consist ESP v1.9"
 })
 
 -- 9. Unload
@@ -291,4 +302,4 @@ window.Hide = function()
     ESP:Unload()
 end
 
-print("Consist ESP Loaded Successfully (v1.8)!")
+print("Consist ESP Loaded Successfully (v1.9)!")
