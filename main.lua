@@ -116,17 +116,6 @@ leftSection:AddToggle({
     end
 })
 
-leftSection:AddSlider({
-    Name = "Max Distance (0 = off)",
-    Flag = "MaxDistance",
-    Min = 0,
-    Max = 2000,
-    Value = 0,
-    Callback = function(value)
-        ESP:SetMaxDistance(value)
-    end
-})
-
 -- if your Pepsi UI build errors on this slider, just delete the block
 -- (slider option names vary slightly between builds of the library)
 leftSection:AddSlider({
