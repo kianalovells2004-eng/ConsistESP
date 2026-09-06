@@ -67,6 +67,16 @@ leftSection:AddToggle({
     end
 })
 
+-- Item ESP (Tool)
+leftSection:AddToggle({
+    Name = "Item ESP (Tool)",
+    Flag = "ItemESP",
+    Value = false,
+    Callback = function(value)
+        ESP:ToggleItem(value)
+    end
+})
+
 -- Distance
 leftSection:AddToggle({
     Name = "Distance",
