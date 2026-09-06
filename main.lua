@@ -2,24 +2,24 @@
 -- Pepsi UI + ESP Loader
 -- Fetches ESP module from GitHub and integrates with Pepsi UI
 
--- 1. 加载 Pepsi UI 库（从 Roblox 资产加载，推荐方式）[reference:0]
+-- 1. 加载 Pepsi UI 库（从 Roblox 资产加载，推荐方式）
 local library = loadstring(game:GetObjects("rbxassetid://7657867786")[1].Source)("Pepsi's UI Library")
 
--- 2. 从 GitHub 加载 ESP 模块[reference:1]
+-- 2. 从 GitHub 加载 ESP 模块
 local espUrl = "https://raw.githubusercontent.com/kianalovells2004-eng/ConsistESP/refs/heads/main/esp.lua"
 local ESP = loadstring(game:HttpGet(espUrl))()
 
--- 3. 创建窗口[reference:2]
+-- 3. 创建窗口
 local window = library:CreateWindow({
     Name = "Consist ESP"
 })
 
--- 4. 创建主标签页[reference:3]
+-- 4. 创建主标签页
 local mainTab = window:CreateTab({
     Name = "Main"
 })
 
--- 5. 创建左侧分区[reference:4]
+-- 5. 创建左侧分区
 local leftSection = mainTab:CreateSection({
     Name = "ESP Settings",
     Side = "Left"
@@ -38,21 +38,41 @@ leftSection:AddToggle({
 })
 
 -- Box ESP
+-- Dependency: turning Box ESP OFF force-disables Box Fill and syncs the UI toggle.
 leftSection:AddToggle({
     Name = "Box ESP",
     Flag = "BoxESP",
     Value = false,
     Callback = function(value)
         ESP:ToggleBox(value)
+        if not value then
+            -- Keep the menu in sync with the dependency rule (fill requires box).
+            pcall(function()
+                if library.Flags.BoxFill then
+                    library.Flags.BoxFill:SetValue(false)
+                end
+            end)
+        end
     end
 })
 
 -- Box Fill
+-- Dependency: fill can only be turned ON while Box ESP is ON.
 leftSection:AddToggle({
     Name = "Box Fill",
     Flag = "BoxFill",
     Value = false,
     Callback = function(value)
+        if value and not ESP.BoxEnabled then
+            -- Box ESP is off, so fill is not allowed.
+            -- Snap the toggle back off in the UI.
+            pcall(function()
+                if library.Flags.BoxFill then
+                    library.Flags.BoxFill:SetValue(false)
+                end
+            end)
+            return
+        end
         ESP:ToggleBoxFill(value)
     end
 })
@@ -169,7 +189,7 @@ local colorSection = mainTab:CreateSection({
     Side = "Left"
 })
 
--- Box Color[reference:5]
+-- Box Color
 colorSection:AddColorpicker({
     Name = "Box Color",
     Flag = "BoxColor",
@@ -209,7 +229,7 @@ colorSection:AddColorpicker({
     end
 })
 
--- 9. 创建主题设计器[reference:6]
+-- 9. 创建主题设计器
 window:CreateDesigner({
     Credit = true,
     Info = "Consist ESP v1.0"
