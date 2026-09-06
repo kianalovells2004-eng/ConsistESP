@@ -602,11 +602,11 @@ RunService.RenderStepped:Connect(function()
             end
             drawings.TeamText.Size = math_floor(13 * scale)
             
-            local itemBounds = drawings.ItemText.TextBounds
+            -- Fixed the Y position to stay planted just like Health Text
             local teamBounds = drawings.TeamText.TextBounds
             local itemY = (screenMin.Y + screenMax.Y) * 0.5
             
-            drawings.TeamText.Position = Vector2_new(screenMax.X + 4 * scale + teamBounds.X * 0.5, itemY + itemBounds.Y + 5 * scale)
+            drawings.TeamText.Position = Vector2_new(screenMax.X + 4 * scale + teamBounds.X * 0.5, itemY + teamBounds.Y + 5 * scale)
             drawings.TeamText.Visible = true
         else
             drawings.TeamText.Visible = false
