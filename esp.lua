@@ -45,7 +45,6 @@ local ESP = {
     TextColor = Color3.fromRGB(255, 255, 255),
     TracerColor = Color3.fromRGB(255, 255, 255),
     StreakColor = Color3.fromRGB(0, 255, 255),
-    Font = Drawing.Fonts.Monospace, -- Defaulted to Monospace
     Drawings = {}
 }
 
@@ -76,19 +75,20 @@ local function getHealthColor(hp)
 end
 
 local function createDrawings(player)
-    local currentFont = ESP.Font
+    -- Hardcoded Monospace font
+    local font = Drawing.Fonts.Monospace 
     local drawings = {
         Box = newDrawing("Square", { Color = ESP.BoxColor, Thickness = 1.5, Filled = false, Transparency = 1 }),
         BoxOutline = newDrawing("Square", { Color = Color3.fromRGB(0, 0, 0), Thickness = 1.5, Filled = false, Transparency = 0.5 }),
         BoxFill = newDrawing("Square", { Color = ESP.BoxFillColor, Thickness = 1, Filled = true, Transparency = 0.6 }),
-        NameText = newDrawing("Text", { Color = ESP.TextColor, Size = 14, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = currentFont, Transparency = 1 }),
-        ItemText = newDrawing("Text", { Color = ESP.TextColor, Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = currentFont, Transparency = 1 }),
-        TeamText = newDrawing("Text", { Color = ESP.TextColor, Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = currentFont, Transparency = 1 }),
-        DistanceText = newDrawing("Text", { Color = ESP.TextColor, Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = currentFont, Transparency = 1 }),
+        NameText = newDrawing("Text", { Color = ESP.TextColor, Size = 14, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = font, Transparency = 1 }),
+        ItemText = newDrawing("Text", { Color = ESP.TextColor, Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = font, Transparency = 1 }),
+        TeamText = newDrawing("Text", { Color = ESP.TextColor, Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = font, Transparency = 1 }),
+        DistanceText = newDrawing("Text", { Color = ESP.TextColor, Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = font, Transparency = 1 }),
         HealthBarOutline = newDrawing("Square", { Color = Color3.fromRGB(0, 0, 0), Thickness = 1.5, Filled = false, Transparency = 0.5 }),
         HealthBarBack = newDrawing("Square", { Color = Color3.fromRGB(0, 0, 0), Thickness = 1, Filled = true, Transparency = 0.6 }),
         HealthBarFill = newDrawing("Square", { Color = HEALTH_COLOR_FULL, Thickness = 1, Filled = true, Transparency = 0.3 }),
-        HealthText = newDrawing("Text", { Color = ESP.TextColor, Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = currentFont, Transparency = 1 }),
+        HealthText = newDrawing("Text", { Color = ESP.TextColor, Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = font, Transparency = 1 }),
         ThreeDLines = {},
         ThreeDOutlines = {},
         CornerLines = {},
@@ -223,17 +223,6 @@ function ESP:ToggleHealthText(state) self.HealthTextEnabled = state if not state
 
 function ESP:SetCustomName(playerName, text) self.CustomNames[playerName] = text end
 function ESP:ClearCustomName(playerName) self.CustomNames[playerName] = nil end
-
-function ESP:SetFont(font) 
-    self.Font = font 
-    for _, d in pairs(self.Drawings) do 
-        d.NameText.Font = font 
-        d.ItemText.Font = font 
-        d.TeamText.Font = font 
-        d.DistanceText.Font = font 
-        d.HealthText.Font = font 
-    end 
-end
 
 function ESP:SetBoxColor(color) self.BoxColor = color for _, d in pairs(self.Drawings) do d.Box.Color = color for i=1,8 do d.CornerLines[i].Color = color end end end
 function ESP:SetBoxFillColor(color) self.BoxFillColor = color for _, d in pairs(self.Drawings) do d.BoxFill.Color = color end end
@@ -550,10 +539,11 @@ RunService.RenderStepped:Connect(function()
             drawings.NameText.Visible = false
         end
 
-        -- Right-side Text Positioning Logic
+        -- Right-side Text Stacking Logic (Item -> Team -> Distance)
         local rightX = screenMax.X + 4 * scale
         local centerY = (screenMin.Y + screenMax.Y) * 0.5
-        local itemVisible = false
+        local gap = 4 * scale
+        local itemsToStack = {}
 
         if ESP.ItemEnabled then
             local toolNames = {}
@@ -565,10 +555,8 @@ RunService.RenderStepped:Connect(function()
             if #toolNames > 0 then
                 drawings.ItemText.Size = getTextSize(13, scale)
                 drawings.ItemText.Text = table.concat(toolNames, ", ")
-                local itemBounds = drawings.ItemText.TextBounds
-                drawings.ItemText.Position = Vector2_new(rightX + itemBounds.X * 0.5, centerY - itemBounds.Y * 0.5)
                 drawings.ItemText.Visible = true
-                itemVisible = true
+                table.insert(itemsToStack, drawings.ItemText)
             else
                 drawings.ItemText.Visible = false
             end
@@ -586,15 +574,8 @@ RunService.RenderStepped:Connect(function()
                 drawings.TeamText.Color = Color3.fromRGB(255, 255, 255)
             end
             drawings.TeamText.Size = getTextSize(13, scale)
-            local teamBounds = drawings.TeamText.TextBounds
-            
-            local teamY = centerY - teamBounds.Y * 0.5
-            if itemVisible then
-                teamY = centerY + drawings.ItemText.TextBounds.Y * 0.5 + 4 * scale + teamBounds.Y * 0.5
-            end
-            
-            drawings.TeamText.Position = Vector2_new(rightX + teamBounds.X * 0.5, teamY)
             drawings.TeamText.Visible = true
+            table.insert(itemsToStack, drawings.TeamText)
         else
             drawings.TeamText.Visible = false
         end
@@ -602,10 +583,25 @@ RunService.RenderStepped:Connect(function()
         if ESP.DistanceEnabled then
             drawings.DistanceText.Size = getTextSize(13, scale)
             drawings.DistanceText.Text = dist .. "m"
-            drawings.DistanceText.Position = Vector2_new((screenMin.X + screenMax.X) * 0.5, screenMax.Y + 4 * scale + drawings.DistanceText.TextBounds.Y * 0.5)
             drawings.DistanceText.Visible = true
+            table.insert(itemsToStack, drawings.DistanceText)
         else
             drawings.DistanceText.Visible = false
+        end
+
+        -- Calculate total height of the stack
+        local totalHeight = 0
+        for _, textObj in ipairs(itemsToStack) do
+            totalHeight = totalHeight + textObj.TextBounds.Y
+        end
+        totalHeight = totalHeight + gap * (#itemsToStack - 1)
+
+        -- Start Y so that the stack is vertically centered on the right side
+        local currentY = centerY - totalHeight * 0.5
+        for _, textObj in ipairs(itemsToStack) do
+            local boundsY = textObj.TextBounds.Y
+            textObj.Position = Vector2_new(rightX + textObj.TextBounds.X * 0.5, currentY + boundsY * 0.5)
+            currentY = currentY + boundsY + gap
         end
 
         if ESP.HealthBarEnabled or ESP.HealthTextEnabled then
