@@ -40,10 +40,10 @@ local function newDrawing(type, properties)
 end
 
 -- Health color scheme (based on % of MaxHealth, so 100 = full)
-local HEALTH_COLOR_FULL      = Color3.fromRGB(75, 255, 75)  -- 100     -> bright green
-local HEALTH_COLOR_MIDYELLOW = Color3.fromRGB(255, 255, 0)  -- 70 - 65 -> mid yellow
-local HEALTH_COLOR_ORANGE    = Color3.fromRGB(255, 185, 0)  -- 50 - 45 -> yellowish / more orangey
-local HEALTH_COLOR_RED       = Color3.fromRGB(255, 50, 50)  -- 15 - 10 -> red (stays red below)
+local HEALTH_COLOR_FULL      = Color3.fromRGB(144, 238, 144) -- 100     -> light green
+local HEALTH_COLOR_MIDYELLOW = Color3.fromRGB(255, 255, 0)   -- 70 - 65 -> mid yellow
+local HEALTH_COLOR_ORANGE    = Color3.fromRGB(255, 185, 0)   -- 50 - 45 -> yellowish / more orangey
+local HEALTH_COLOR_RED       = Color3.fromRGB(255, 50, 50)   -- 15 - 10 -> red (stays red below)
 
 local function lerp(a, b, t)
     return a + (b - a) * t
@@ -55,7 +55,7 @@ end
 
 -- Health fraction (0 - 1) -> color.
 -- Holds the color inside each requested range and blends smoothly between them:
---   100      -> bright green
+--   100      -> light green
 --   70 - 65  -> mid yellow
 --   50 - 45  -> yellowish / more orangey
 --   15 - 10  -> red
@@ -344,10 +344,12 @@ RunService.RenderStepped:Connect(function()
             if ESP.HealthTextEnabled then
                 drawings.HealthText.Text = "[" .. math.floor(humanoid.Health) .. "]"
                 drawings.HealthText.Color = getHealthColor(hp)
-                -- Right side of the box, up near the top of the health bar
+                -- Anchor the text fully ABOVE the top edge of the box.
+                -- This keeps it at the top no matter how small the box gets when zoomed out.
+                local textBounds = drawings.HealthText.TextBounds
                 drawings.HealthText.Position = Vector2.new(
-                    screenMax.X + 4 + drawings.HealthText.TextBounds.X / 2,
-                    screenMin.Y + 2 + drawings.HealthText.TextBounds.Y / 2
+                    screenMax.X + 4 + textBounds.X / 2,
+                    screenMin.Y - 2 - textBounds.Y / 2
                 )
                 drawings.HealthText.Visible = true
             else
