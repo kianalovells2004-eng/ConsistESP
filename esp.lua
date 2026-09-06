@@ -49,28 +49,16 @@ local HEALTH_COLOR_MIDYELLOW = Color3.fromRGB(255, 255, 0)
 local HEALTH_COLOR_ORANGE    = Color3.fromRGB(255, 185, 0)
 local HEALTH_COLOR_RED       = Color3.fromRGB(255, 50, 50)
 
-local function lerp(a, b, t)
-    return a + (b - a) * t
-end
-
-local function lerpColor(c1, c2, t)
-    return Color3.new(lerp(c1.R, c2.R, t), lerp(c1.G, c2.G, t), lerp(c1.B, c2.B, t))
-end
+local function lerp(a, b, t) return a + (b - a) * t end
+local function lerpColor(c1, c2, t) return Color3.new(lerp(c1.R, c2.R, t), lerp(c1.G, c2.G, t), lerp(c1.B, c2.B, t)) end
 
 local function getHealthColor(hp)
-    if hp >= 0.70 then
-        return lerpColor(HEALTH_COLOR_MIDYELLOW, HEALTH_COLOR_FULL, (hp - 0.70) / 0.30)
-    elseif hp >= 0.65 then
-        return HEALTH_COLOR_MIDYELLOW
-    elseif hp >= 0.50 then
-        return lerpColor(HEALTH_COLOR_ORANGE, HEALTH_COLOR_MIDYELLOW, (hp - 0.50) / 0.15)
-    elseif hp >= 0.45 then
-        return HEALTH_COLOR_ORANGE
-    elseif hp >= 0.15 then
-        return lerpColor(HEALTH_COLOR_RED, HEALTH_COLOR_ORANGE, (hp - 0.15) / 0.30)
-    else
-        return HEALTH_COLOR_RED
-    end
+    if hp >= 0.70 then return lerpColor(HEALTH_COLOR_MIDYELLOW, HEALTH_COLOR_FULL, (hp - 0.70) / 0.30)
+    elseif hp >= 0.65 then return HEALTH_COLOR_MIDYELLOW
+    elseif hp >= 0.50 then return lerpColor(HEALTH_COLOR_ORANGE, HEALTH_COLOR_MIDYELLOW, (hp - 0.50) / 0.15)
+    elseif hp >= 0.45 then return HEALTH_COLOR_ORANGE
+    elseif hp >= 0.15 then return lerpColor(HEALTH_COLOR_RED, HEALTH_COLOR_ORANGE, (hp - 0.15) / 0.30)
+    else return HEALTH_COLOR_RED end
 end
 
 local function createDrawings(player)
@@ -264,7 +252,6 @@ local function updateCornerBox(drawings, screenMin, screenMax, boxColor)
     local bl = Vector2.new(screenMin.X, screenMax.Y)
     local br = screenMax
 
-    -- 1: TL-H, 2: TL-V, 3: TR-H, 4: TR-V, 5: BL-H, 6: BL-V, 7: BR-H, 8: BR-V
     local positions = {
         {From = tl, To = tl + Vector2.new(cornerLen, 0)}, -- TL-H
         {From = tl, To = tl + Vector2.new(0, cornerLen)}, -- TL-V
@@ -282,6 +269,7 @@ local function updateCornerBox(drawings, screenMin, screenMax, boxColor)
         drawings.CornerOutlines[i].Visible = true
         drawings.CornerLines[i].From = pos.From
         drawings.CornerLines[i].To = pos.To
+        drawings.CornerLines[i].Color = boxColor
         drawings.CornerLines[i].Visible = true
     end
 end
@@ -300,7 +288,6 @@ RunService.RenderStepped:Connect(function()
     for _, player in ipairs(Players:GetPlayers()) do
         if player == LocalPlayer then continue end
         
-        -- Team Check Optimization
         if ESP.TeamCheckEnabled and localTeam and player.Team == localTeam then
             local drawings = ESP.Drawings[player]
             if drawings then hideAllDrawings(drawings) end
@@ -359,7 +346,6 @@ RunService.RenderStepped:Connect(function()
             screenMax = Vector2.new(math_max(screenMax.X, corner.X), math_max(screenMax.Y, corner.Y))
         end
 
-        -- Box ESP
         if ESP.BoxEnabled then
             local boxSize = Vector2.new(screenMax.X - screenMin.X, screenMax.Y - screenMin.Y)
             drawings.Box.Size = boxSize
@@ -373,7 +359,6 @@ RunService.RenderStepped:Connect(function()
             drawings.BoxOutline.Visible = false
         end
         
-        -- Corner Box
         if ESP.CornerBoxEnabled then
             updateCornerBox(drawings, screenMin, screenMax, ESP.BoxColor)
         else
