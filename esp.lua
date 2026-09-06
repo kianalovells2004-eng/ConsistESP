@@ -214,7 +214,17 @@ function ESP:ToggleTeamCheck(state) self.TeamCheckEnabled = state end
 function ESP:ToggleTeamColor(state) self.TeamColorEnabled = state end
 function ESP:ToggleName(state) self.NameEnabled = state if not state then for _, d in pairs(self.Drawings) do d.NameText.Visible = false end end end
 function ESP:ToggleDisplayName(state) self.DisplayNameEnabled = state if not state then for _, d in pairs(self.Drawings) do d.NameText.Visible = false end end end
-function ESP:ToggleHostile(state) self.HostileEnabled = state if not state then for _, d in pairs(self.Drawings) do d.HostileText.Visible = false end end end
+
+-- ADDED THE MISSING FUNCTION HERE
+function ESP:ToggleHostile(state) 
+    self.HostileEnabled = state 
+    if not state then 
+        for _, d in pairs(self.Drawings) do 
+            d.HostileText.Visible = false 
+        end 
+    end 
+end
+
 function ESP:ToggleItem(state) self.ItemEnabled = state if not state then for _, d in pairs(self.Drawings) do d.ItemText.Visible = false end end end
 function ESP:ToggleTeamIndicator(state) self.TeamIndicatorEnabled = state if not state then for _, d in pairs(self.Drawings) do d.TeamText.Visible = false end end end
 function ESP:Toggle3DBox(state) self.ThreeDBoxEnabled = state if not state then for _, d in pairs(self.Drawings) do for i = 1, 12 do d.ThreeDLines[i].Visible = false d.ThreeDOutlines[i].Visible = false end end end end
@@ -568,6 +578,7 @@ RunService.RenderStepped:Connect(function()
 
         -- Hostile Indicator (Top)
         if ESP.HostileEnabled then
+            -- Match exact logic from Vape: entity.Character:GetAttribute('Hostile')
             local isHostile = character:GetAttribute("Hostile") == true or player:GetAttribute("Hostile") == true
             if isHostile then
                 drawings.HostileText.Size = getTextSize(13, scale)
