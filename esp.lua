@@ -10,7 +10,7 @@ local Camera = Workspace.CurrentCamera
 local math_min, math_max, math_floor, math_huge = math.min, math.max, math.floor, math.huge
 local Vector2_new, Vector3_new = Vector2.new, Vector3.new
 
-local STREAK_SEGMENTS = 4 -- Reduced from 5 to 4 since the streak is smaller and crosses fewer corners
+local STREAK_SEGMENTS = 4 
 
 -- 3D box edges (hoisted so it isn't rebuilt every frame)
 local EDGES_3D = {
@@ -32,7 +32,7 @@ local ESP = {
     ItemEnabled = false,
     TeamIndicatorEnabled = false,
     ThreeDBoxEnabled = false,
-    BodyTracerEnabled = false, -- Renamed from TracerLocal
+    BodyTracerEnabled = false,
     TracerMouseEnabled = false,
     TracerTopEnabled = false,
     TracerBottomEnabled = false,
@@ -45,6 +45,7 @@ local ESP = {
     TextColor = Color3.fromRGB(255, 255, 255),
     TracerColor = Color3.fromRGB(255, 255, 255),
     StreakColor = Color3.fromRGB(0, 255, 255),
+    Font = Drawing.Fonts.UI, -- Default Font
     Drawings = {}
 }
 
@@ -75,23 +76,24 @@ local function getHealthColor(hp)
 end
 
 local function createDrawings(player)
+    local currentFont = ESP.Font
     local drawings = {
         Box = newDrawing("Square", { Color = ESP.BoxColor, Thickness = 1.5, Filled = false, Transparency = 1 }),
         BoxOutline = newDrawing("Square", { Color = Color3.fromRGB(0, 0, 0), Thickness = 1.5, Filled = false, Transparency = 0.5 }),
         BoxFill = newDrawing("Square", { Color = ESP.BoxFillColor, Thickness = 1, Filled = true, Transparency = 0.6 }),
-        NameText = newDrawing("Text", { Color = ESP.TextColor, Size = 14, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = Drawing.Fonts.UI, Transparency = 1 }),
-        ItemText = newDrawing("Text", { Color = ESP.TextColor, Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = Drawing.Fonts.UI, Transparency = 1 }),
-        TeamText = newDrawing("Text", { Color = ESP.TextColor, Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = Drawing.Fonts.UI, Transparency = 1 }),
-        DistanceText = newDrawing("Text", { Color = ESP.TextColor, Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = Drawing.Fonts.UI, Transparency = 1 }),
+        NameText = newDrawing("Text", { Color = ESP.TextColor, Size = 14, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = currentFont, Transparency = 1 }),
+        ItemText = newDrawing("Text", { Color = ESP.TextColor, Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = currentFont, Transparency = 1 }),
+        TeamText = newDrawing("Text", { Color = ESP.TextColor, Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = currentFont, Transparency = 1 }),
+        DistanceText = newDrawing("Text", { Color = ESP.TextColor, Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = currentFont, Transparency = 1 }),
         HealthBarOutline = newDrawing("Square", { Color = Color3.fromRGB(0, 0, 0), Thickness = 1.5, Filled = false, Transparency = 0.5 }),
         HealthBarBack = newDrawing("Square", { Color = Color3.fromRGB(0, 0, 0), Thickness = 1, Filled = true, Transparency = 0.6 }),
         HealthBarFill = newDrawing("Square", { Color = HEALTH_COLOR_FULL, Thickness = 1, Filled = true, Transparency = 0.3 }),
-        HealthText = newDrawing("Text", { Color = ESP.TextColor, Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = Drawing.Fonts.UI, Transparency = 1 }),
+        HealthText = newDrawing("Text", { Color = ESP.TextColor, Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = currentFont, Transparency = 1 }),
         ThreeDLines = {},
         ThreeDOutlines = {},
         CornerLines = {},
         CornerOutlines = {},
-        BodyTracer = newDrawing("Line", { Color = ESP.TracerColor, Thickness = 1.5, Transparency = 1 }), -- Renamed
+        BodyTracer = newDrawing("Line", { Color = ESP.TracerColor, Thickness = 1.5, Transparency = 1 }),
         TracerMouse = newDrawing("Line", { Color = ESP.TracerColor, Thickness = 1.5, Transparency = 1 }),
         TracerTop = newDrawing("Line", { Color = ESP.TracerColor, Thickness = 1.5, Transparency = 1 }),
         TracerBottom = newDrawing("Line", { Color = ESP.TracerColor, Thickness = 1.5, Transparency = 1 }),
@@ -222,6 +224,17 @@ function ESP:ToggleHealthText(state) self.HealthTextEnabled = state if not state
 function ESP:SetCustomName(playerName, text) self.CustomNames[playerName] = text end
 function ESP:ClearCustomName(playerName) self.CustomNames[playerName] = nil end
 
+function ESP:SetFont(font) 
+    self.Font = font 
+    for _, d in pairs(self.Drawings) do 
+        d.NameText.Font = font 
+        d.ItemText.Font = font 
+        d.TeamText.Font = font 
+        d.DistanceText.Font = font 
+        d.HealthText.Font = font 
+    end 
+end
+
 function ESP:SetBoxColor(color) self.BoxColor = color for _, d in pairs(self.Drawings) do d.Box.Color = color for i=1,8 do d.CornerLines[i].Color = color end end end
 function ESP:SetBoxFillColor(color) self.BoxFillColor = color for _, d in pairs(self.Drawings) do d.BoxFill.Color = color end end
 function ESP:SetTextColor(color) self.TextColor = color for _, d in pairs(self.Drawings) do d.NameText.Color = color d.ItemText.Color = color d.TeamText.Color = color d.DistanceText.Color = color end end
@@ -243,7 +256,6 @@ function ESP:Unload()
     self.Drawings = {}
 end
 
--- Optimized bounds calculation
 local function getCharacterBounds(character)
     local min, max
     for _, part in ipairs(character:GetChildren()) do
@@ -322,7 +334,6 @@ local function getTargetScreenPos(character)
     return worldToScreen(rootPart.Position)
 end
 
--- Hoisted Streak Tracing logic to save Garbage Collection overhead
 local function getStreakPoints(startDist, length, w, h, screenMin, screenMax)
     local P = 2 * (w + h)
     local function mapPoint(p)
@@ -363,7 +374,6 @@ local function getStreakPoints(startDist, length, w, h, screenMin, screenMax)
     return points
 end
 
--- Helper to enforce readable text size
 local function getTextSize(baseSize, scale)
     return math.max(11, math_floor(baseSize * scale))
 end
@@ -449,7 +459,6 @@ RunService.RenderStepped:Connect(function()
         local dist = math_floor((camPos - rootPart.Position).Magnitude)
         local scale = 1
         if dist > 400 then
-            -- Scale 1.0 at 400m, 0.4 at 1000m
             scale = math.max(0.4, 1 - ((dist - 400) / 600) * 0.6)
         end
 
@@ -557,7 +566,6 @@ RunService.RenderStepped:Connect(function()
                 drawings.ItemText.Size = getTextSize(13, scale)
                 drawings.ItemText.Text = table.concat(toolNames, ", ")
                 local itemBounds = drawings.ItemText.TextBounds
-                -- Center it vertically on the right side
                 drawings.ItemText.Position = Vector2_new(rightX + itemBounds.X * 0.5, centerY - itemBounds.Y * 0.5)
                 drawings.ItemText.Visible = true
                 itemVisible = true
@@ -581,7 +589,6 @@ RunService.RenderStepped:Connect(function()
             local teamBounds = drawings.TeamText.TextBounds
             
             local teamY = centerY - teamBounds.Y * 0.5
-            -- Place it under the weapon indicator with a 4px scaled gap, but not touching
             if itemVisible then
                 teamY = centerY + drawings.ItemText.TextBounds.Y * 0.5 + 4 * scale + teamBounds.Y * 0.5
             end
@@ -632,7 +639,6 @@ RunService.RenderStepped:Connect(function()
                 drawings.HealthText.Text = "[" .. math_floor(humanoid.Health) .. "]"
                 drawings.HealthText.Color = getHealthColor(hp)
                 local textBounds = drawings.HealthText.TextBounds
-                -- Top right corner
                 drawings.HealthText.Position = Vector2_new(screenMax.X + 4 * scale + textBounds.X * 0.5, screenMin.Y - 2 * scale - textBounds.Y * 0.5)
                 drawings.HealthText.Visible = true
             else
