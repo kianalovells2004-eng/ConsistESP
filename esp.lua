@@ -45,7 +45,7 @@ local ESP = {
     TextColor = Color3.fromRGB(255, 255, 255),
     TracerColor = Color3.fromRGB(255, 255, 255),
     StreakColor = Color3.fromRGB(0, 255, 255),
-    Font = Drawing.Fonts.UI, -- Default Font
+    Font = Drawing.Fonts.Monospace, -- Defaulted to Monospace
     Drawings = {}
 }
 
