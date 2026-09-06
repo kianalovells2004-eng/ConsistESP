@@ -391,7 +391,6 @@ RunService.RenderStepped:Connect(function()
             drawings.BoxOutline.Position = screenMin - Vector2.new(1, 1)
             drawings.BoxOutline.Visible = true
             
-            -- Box Streak Logic (Fixed & Smooth)
             if ESP.BoxStreakEnabled then
                 local w = boxSize.X
                 local h = boxSize.Y
