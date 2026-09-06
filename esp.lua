@@ -111,7 +111,6 @@ local function createDrawings(player)
     end
 
     for i = 1, STREAK_SEGMENTS do
-        -- Made the streak thinner (1.0 instead of 2.5)
         drawings.BoxStreaks[i] = newDrawing("Line", { Color = ESP.StreakColor, Thickness = 1.0, Transparency = 1 })
     end
 
@@ -470,7 +469,6 @@ RunService.RenderStepped:Connect(function()
                     local t = (clock * 0.1 * streakSpeed) % 1
                     local startDist = t * P
 
-                    -- Made the streak significantly shorter (10% to 40% max instead of 15% to 60%)
                     local streakLen = math.min(math.clamp(P * 0.1, 15, 40), P * 0.4)
 
                     local points = getStreakPoints(startDist, streakLen, w, h, screenMin, screenMax)
@@ -602,11 +600,17 @@ RunService.RenderStepped:Connect(function()
             end
             drawings.TeamText.Size = math_floor(13 * scale)
             
-            -- Fixed the Y position to stay planted just like Health Text
+            -- Anchor team indicator perfectly to the top right of the box
             local teamBounds = drawings.TeamText.TextBounds
-            local itemY = (screenMin.Y + screenMax.Y) * 0.5
+            local teamY = screenMin.Y + 2 * scale + teamBounds.Y * 0.5
             
-            drawings.TeamText.Position = Vector2_new(screenMax.X + 4 * scale + teamBounds.X * 0.5, itemY + teamBounds.Y + 5 * scale)
+            -- If health text is visible, stack the team text neatly underneath it
+            if ESP.HealthTextEnabled then
+                local healthBounds = drawings.HealthText.TextBounds
+                teamY = screenMin.Y + 2 * scale + healthBounds.Y * 0.5 + 4 * scale + teamBounds.Y * 0.5
+            end
+            
+            drawings.TeamText.Position = Vector2_new(screenMax.X + 4 * scale + teamBounds.X * 0.5, teamY)
             drawings.TeamText.Visible = true
         else
             drawings.TeamText.Visible = false
