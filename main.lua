@@ -53,6 +53,9 @@ leftSection:AddToggle({
                 if library.Flags.BoxFill then
                     library.Flags.BoxFill:SetValue(false)
                 end
+                if library.Flags.BoxStreak then
+                    library.Flags.BoxStreak:SetValue(false)
+                end
             end)
         end
     end
@@ -81,6 +84,23 @@ leftSection:AddToggle({
             return
         end
         ESP:ToggleBoxFill(value)
+    end
+})
+
+leftSection:AddToggle({
+    Name = "Box Streak",
+    Flag = "BoxStreak",
+    Value = false,
+    Callback = function(value)
+        if value and not ESP.BoxEnabled then
+            pcall(function()
+                if library.Flags.BoxStreak then
+                    library.Flags.BoxStreak:SetValue(false)
+                end
+            end)
+            return
+        end
+        ESP:ToggleBoxStreak(value)
     end
 })
 
@@ -232,6 +252,24 @@ colorSection:AddColorpicker({
 })
 
 colorSection:AddColorpicker({
+    Name = "Streak Color",
+    Flag = "StreakColor",
+    Value = Color3.fromRGB(0, 255, 255),
+    Callback = function(color)
+        ESP:SetStreakColor(color)
+    end
+})
+
+colorSection:AddColorpicker({
+    Name = "Streak Glow Color",
+    Flag = "StreakGlowColor",
+    Value = Color3.fromRGB(0, 150, 255),
+    Callback = function(color)
+        ESP:SetStreakGlowColor(color)
+    end
+})
+
+colorSection:AddColorpicker({
     Name = "Text Color",
     Flag = "TextColor",
     Value = Color3.fromRGB(255, 255, 255),
@@ -252,7 +290,7 @@ colorSection:AddColorpicker({
 -- 8. Theme Designer
 window:CreateDesigner({
     Credit = true,
-    Info = "Consist ESP v1.2"
+    Info = "Consist ESP v1.5"
 })
 
 -- 9. Unload
@@ -260,4 +298,4 @@ window.Hide = function()
     ESP:Unload()
 end
 
-print("Consist ESP Loaded Successfully (v1.2)!")
+print("Consist ESP Loaded Successfully (v1.5)!")
