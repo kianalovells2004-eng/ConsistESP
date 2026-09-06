@@ -2,32 +2,29 @@
 -- Pepsi UI + ESP Loader
 -- Fetches ESP module from GitHub and integrates with Pepsi UI
 
--- 1. 加载 Pepsi UI 库（从 Roblox 资产加载，推荐方式）
+-- 1. Load Pepsi UI
 local library = loadstring(game:GetObjects("rbxassetid://7657867786")[1].Source)("Pepsi's UI Library")
 
--- 2. 从 GitHub 加载 ESP 模块
+-- 2. Load ESP Module
 local espUrl = "https://raw.githubusercontent.com/kianalovells2004-eng/ConsistESP/refs/heads/main/esp.lua"
 local ESP = loadstring(game:HttpGet(espUrl))()
 
--- 3. 创建窗口
+-- 3. Create Window
 local window = library:CreateWindow({
     Name = "Consist ESP"
 })
 
--- 4. 创建主标签页
+-- 4. Main Tab
 local mainTab = window:CreateTab({
     Name = "Main"
 })
 
--- 5. 创建左侧分区
+-- 5. Left Section (ESP)
 local leftSection = mainTab:CreateSection({
     Name = "ESP Settings",
     Side = "Left"
 })
 
--- 6. 添加组件
-
--- 主开关（Toggle）
 leftSection:AddToggle({
     Name = "ESP Enabled",
     Flag = "ESPEnabled",
@@ -37,8 +34,15 @@ leftSection:AddToggle({
     end
 })
 
--- Box ESP
--- Dependency: turning Box ESP OFF force-disables Box Fill and syncs the UI toggle.
+leftSection:AddToggle({
+    Name = "Team Check",
+    Flag = "TeamCheck",
+    Value = false,
+    Callback = function(value)
+        ESP:ToggleTeamCheck(value)
+    end
+})
+
 leftSection:AddToggle({
     Name = "Box ESP",
     Flag = "BoxESP",
@@ -46,7 +50,6 @@ leftSection:AddToggle({
     Callback = function(value)
         ESP:ToggleBox(value)
         if not value then
-            -- Keep the menu in sync with the dependency rule (fill requires box).
             pcall(function()
                 if library.Flags.BoxFill then
                     library.Flags.BoxFill:SetValue(false)
@@ -56,16 +59,21 @@ leftSection:AddToggle({
     end
 })
 
--- Box Fill
--- Dependency: fill can only be turned ON while Box ESP is ON.
+leftSection:AddToggle({
+    Name = "Corner Box",
+    Flag = "CornerBox",
+    Value = false,
+    Callback = function(value)
+        ESP:ToggleCornerBox(value)
+    end
+})
+
 leftSection:AddToggle({
     Name = "Box Fill",
     Flag = "BoxFill",
     Value = false,
     Callback = function(value)
         if value and not ESP.BoxEnabled then
-            -- Box ESP is off, so fill is not allowed.
-            -- Snap the toggle back off in the UI.
             pcall(function()
                 if library.Flags.BoxFill then
                     library.Flags.BoxFill:SetValue(false)
@@ -77,7 +85,6 @@ leftSection:AddToggle({
     end
 })
 
--- Name ESP
 leftSection:AddToggle({
     Name = "Name ESP",
     Flag = "NameESP",
@@ -87,7 +94,6 @@ leftSection:AddToggle({
     end
 })
 
--- Item ESP (Tool)
 leftSection:AddToggle({
     Name = "Item ESP (Tool)",
     Flag = "ItemESP",
@@ -97,7 +103,6 @@ leftSection:AddToggle({
     end
 })
 
--- Distance
 leftSection:AddToggle({
     Name = "Distance",
     Flag = "DistanceESP",
@@ -107,7 +112,6 @@ leftSection:AddToggle({
     end
 })
 
--- Health Bar
 leftSection:AddToggle({
     Name = "Health Bar",
     Flag = "HealthBar",
@@ -117,7 +121,6 @@ leftSection:AddToggle({
     end
 })
 
--- Health Text
 leftSection:AddToggle({
     Name = "Health Text",
     Flag = "HealthText",
@@ -127,7 +130,6 @@ leftSection:AddToggle({
     end
 })
 
--- 3D Box
 leftSection:AddToggle({
     Name = "3D Box",
     Flag = "ThreeDBox",
@@ -137,13 +139,12 @@ leftSection:AddToggle({
     end
 })
 
--- 7. 创建右侧分区（Tracers）
+-- 6. Right Section (Tracers)
 local rightSection = mainTab:CreateSection({
     Name = "Tracers",
     Side = "Right"
 })
 
--- Tracer: Local Player
 rightSection:AddToggle({
     Name = "Tracer (Local)",
     Flag = "TracerLocal",
@@ -153,7 +154,6 @@ rightSection:AddToggle({
     end
 })
 
--- Tracer: Mouse
 rightSection:AddToggle({
     Name = "Tracer (Mouse)",
     Flag = "TracerMouse",
@@ -163,7 +163,6 @@ rightSection:AddToggle({
     end
 })
 
--- Tracer: Top
 rightSection:AddToggle({
     Name = "Tracer (Top)",
     Flag = "TracerTop",
@@ -173,7 +172,6 @@ rightSection:AddToggle({
     end
 })
 
--- Tracer: Bottom
 rightSection:AddToggle({
     Name = "Tracer (Bottom)",
     Flag = "TracerBottom",
@@ -183,13 +181,12 @@ rightSection:AddToggle({
     end
 })
 
--- 8. 颜色设置分区
+-- 7. Colors Section
 local colorSection = mainTab:CreateSection({
     Name = "Colors",
     Side = "Left"
 })
 
--- Box Color
 colorSection:AddColorpicker({
     Name = "Box Color",
     Flag = "BoxColor",
@@ -199,7 +196,6 @@ colorSection:AddColorpicker({
     end
 })
 
--- Box Fill Color
 colorSection:AddColorpicker({
     Name = "Box Fill Color",
     Flag = "BoxFillColor",
@@ -209,7 +205,6 @@ colorSection:AddColorpicker({
     end
 })
 
--- Text Color
 colorSection:AddColorpicker({
     Name = "Text Color",
     Flag = "TextColor",
@@ -219,7 +214,6 @@ colorSection:AddColorpicker({
     end
 })
 
--- Tracer Color
 colorSection:AddColorpicker({
     Name = "Tracer Color",
     Flag = "TracerColor",
@@ -229,15 +223,15 @@ colorSection:AddColorpicker({
     end
 })
 
--- 9. 创建主题设计器
+-- 8. Theme Designer
 window:CreateDesigner({
     Credit = true,
-    Info = "Consist ESP v1.0"
+    Info = "Consist ESP v1.1"
 })
 
--- 10. 窗口关闭时清理
+-- 9. Unload
 window.Hide = function()
     ESP:Unload()
 end
 
-print("ESP Loaded successfully!")
+print("Consist ESP Loaded Successfully (v1.1)!")
