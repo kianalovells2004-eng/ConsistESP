@@ -401,60 +401,66 @@ RunService.RenderStepped:Connect(function()
             drawings.BoxOutline.Position = screenMin - Vector2.new(1, 1)
             drawings.BoxOutline.Visible = true
             
-            -- Box Streak Logic (Slowly alternating around the track)
+            -- Box Streak Logic (Normalized for smooth, stable movement)
             if ESP.BoxStreakEnabled then
                 local w = boxSize.X
                 local h = boxSize.Y
                 local P = 2 * (w + h)
-                local speed = 60 -- Much slower speed
-                local len = 80 -- Length of the streak
                 
-                local function mapPoint(p)
-                    p = p % P
-                    if p < w then return Vector2.new(screenMin.X + p, screenMin.Y), 0 end
-                    p = p - w
-                    if p < h then return Vector2.new(screenMax.X, screenMin.Y + p), 1 end
-                    p = p - h
-                    if p < w then return Vector2.new(screenMax.X - p, screenMax.Y), 2 end
-                    p = p - w
-                    return Vector2.new(screenMin.X, screenMax.Y - p), 3
-                end
-                
-                local progress = (os.clock() * speed) % P
-                local fromPos, edge1 = mapPoint(progress)
-                local toPos, edge2 = mapPoint(progress + len)
-                
-                local corners = {
-                    screenMin,
-                    Vector2.new(screenMax.X, screenMin.Y),
-                    screenMax,
-                    Vector2.new(screenMin.X, screenMax.Y)
-                }
-                
-                if edge1 == edge2 then
-                    drawings.BoxStreak1.From = fromPos
-                    drawings.BoxStreak1.To = toPos
-                    drawings.BoxStreak1.Visible = true
-                    drawings.BoxStreakGlow1.From = fromPos
-                    drawings.BoxStreakGlow1.To = toPos
-                    drawings.BoxStreakGlow1.Visible = true
-                    drawings.BoxStreak2.Visible = false
-                    drawings.BoxStreakGlow2.Visible = false
-                else
-                    local corner = corners[edge1 + 1]
-                    drawings.BoxStreak1.From = fromPos
-                    drawings.BoxStreak1.To = corner
-                    drawings.BoxStreak1.Visible = true
-                    drawings.BoxStreakGlow1.From = fromPos
-                    drawings.BoxStreakGlow1.To = corner
-                    drawings.BoxStreakGlow1.Visible = true
+                if P > 0 then
+                    -- 0.1 means it takes 10 seconds to complete one full loop
+                    local t = (os.clock() * 0.1) % 1
+                    local dist = t * P
                     
-                    drawings.BoxStreak2.From = corner
-                    drawings.BoxStreak2.To = toPos
-                    drawings.BoxStreak2.Visible = true
-                    drawings.BoxStreakGlow2.From = corner
-                    drawings.BoxStreakGlow2.To = toPos
-                    drawings.BoxStreakGlow2.Visible = true
+                    -- Streak length is 15% of the perimeter, capped to 60px so it doesn't get too long on big boxes
+                    local streakLen = math.clamp(P * 0.15, 20, 60)
+                    
+                    local function mapPoint(p)
+                        p = p % P
+                        if p < w then return Vector2.new(screenMin.X + p, screenMin.Y), 0 end
+                        p = p - w
+                        if p < h then return Vector2.new(screenMax.X, screenMin.Y + p), 1 end
+                        p = p - h
+                        if p < w then return Vector2.new(screenMax.X - p, screenMax.Y), 2 end
+                        p = p - w
+                        return Vector2.new(screenMin.X, screenMax.Y - p), 3
+                    end
+                    
+                    local p1, edge1 = mapPoint(dist)
+                    local p2, edge2 = mapPoint(dist + streakLen)
+                    
+                    local corners = {
+                        screenMin,
+                        Vector2.new(screenMax.X, screenMin.Y),
+                        screenMax,
+                        Vector2.new(screenMin.X, screenMax.Y)
+                    }
+                    
+                    if edge1 == edge2 then
+                        drawings.BoxStreak1.From = p1
+                        drawings.BoxStreak1.To = p2
+                        drawings.BoxStreak1.Visible = true
+                        drawings.BoxStreakGlow1.From = p1
+                        drawings.BoxStreakGlow1.To = p2
+                        drawings.BoxStreakGlow1.Visible = true
+                        drawings.BoxStreak2.Visible = false
+                        drawings.BoxStreakGlow2.Visible = false
+                    else
+                        local corner = corners[edge1 + 1]
+                        drawings.BoxStreak1.From = p1
+                        drawings.BoxStreak1.To = corner
+                        drawings.BoxStreak1.Visible = true
+                        drawings.BoxStreakGlow1.From = p1
+                        drawings.BoxStreakGlow1.To = corner
+                        drawings.BoxStreakGlow1.Visible = true
+                        
+                        drawings.BoxStreak2.From = corner
+                        drawings.BoxStreak2.To = p2
+                        drawings.BoxStreak2.Visible = true
+                        drawings.BoxStreakGlow2.From = corner
+                        drawings.BoxStreakGlow2.To = p2
+                        drawings.BoxStreakGlow2.Visible = true
+                    end
                 end
             else
                 drawings.BoxStreak1.Visible = false
