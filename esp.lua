@@ -27,6 +27,7 @@ local ESP = {
     BoxStreakEnabled = false,
     StreakSpeed = 1,
     TeamCheckEnabled = false,
+    TeamColorEnabled = false, -- New Team Color toggle
     NameEnabled = false,
     DisplayNameEnabled = false,
     ItemEnabled = false,
@@ -75,7 +76,6 @@ local function getHealthColor(hp)
 end
 
 local function createDrawings(player)
-    -- Hardcoded Monospace font
     local font = Drawing.Fonts.Monospace 
     local drawings = {
         Box = newDrawing("Square", { Color = ESP.BoxColor, Thickness = 1.5, Filled = false, Transparency = 1 }),
@@ -208,6 +208,7 @@ function ESP:ToggleBoxFill(state)
 end
 
 function ESP:ToggleTeamCheck(state) self.TeamCheckEnabled = state end
+function ESP:ToggleTeamColor(state) self.TeamColorEnabled = state end
 function ESP:ToggleName(state) self.NameEnabled = state if not state then for _, d in pairs(self.Drawings) do d.NameText.Visible = false end end end
 function ESP:ToggleDisplayName(state) self.DisplayNameEnabled = state if not state then for _, d in pairs(self.Drawings) do d.NameText.Visible = false end end end
 function ESP:ToggleItem(state) self.ItemEnabled = state if not state then for _, d in pairs(self.Drawings) do d.ItemText.Visible = false end end end
@@ -269,7 +270,7 @@ local function worldToScreen(worldPos)
     return Vector2_new(screenPos.X, screenPos.Y), onScreen
 end
 
-local function update3DLines(drawings, corners)
+local function update3DLines(drawings, corners, color)
     for i = 1, 12 do
         local edge = EDGES_3D[i]
         local from, to = corners[edge[1]], corners[edge[2]]
@@ -278,6 +279,7 @@ local function update3DLines(drawings, corners)
         drawings.ThreeDOutlines[i].Visible = true
         drawings.ThreeDLines[i].From = from
         drawings.ThreeDLines[i].To = to
+        drawings.ThreeDLines[i].Color = color
         drawings.ThreeDLines[i].Visible = true
     end
 end
@@ -380,6 +382,7 @@ RunService.RenderStepped:Connect(function()
     local fillOn = ESP.BoxFillEnabled
     local streakOn = ESP.BoxStreakEnabled
     local streakSpeed = ESP.StreakSpeed
+    local useTeamColor = ESP.TeamColorEnabled
 
     for _, player in ipairs(Players:GetPlayers()) do
         if player == LocalPlayer then continue end
@@ -451,10 +454,23 @@ RunService.RenderStepped:Connect(function()
             scale = math.max(0.4, 1 - ((dist - 400) / 600) * 0.6)
         end
 
+        -- Team Color Logic
+        local pColor = ESP.TextColor
+        local pBoxColor = ESP.BoxColor
+        local pTracerColor = ESP.TracerColor
+        
+        if useTeamColor and player.Team then
+            local tColor = player.Team.TeamColor.Color
+            pColor = tColor
+            pBoxColor = tColor
+            pTracerColor = tColor
+        end
+
         if boxOn then
             local boxSize = Vector2_new(screenMax.X - screenMin.X, screenMax.Y - screenMin.Y)
             drawings.Box.Size = boxSize
             drawings.Box.Position = screenMin
+            drawings.Box.Color = pBoxColor
             drawings.Box.Visible = true
             drawings.BoxOutline.Size = boxSize + Vector2_new(2, 2)
             drawings.BoxOutline.Position = screenMin - Vector2_new(1, 1)
@@ -504,7 +520,7 @@ RunService.RenderStepped:Connect(function()
         end
         
         if ESP.CornerBoxEnabled then
-            updateCornerBox(drawings, screenMin, screenMax, ESP.BoxColor)
+            updateCornerBox(drawings, screenMin, screenMax, pBoxColor)
         else
             for i = 1, 8 do
                 drawings.CornerLines[i].Visible = false
@@ -531,6 +547,7 @@ RunService.RenderStepped:Connect(function()
             end
             drawings.NameText.Size = getTextSize(14, scale)
             drawings.NameText.Text = name
+            drawings.NameText.Color = pColor
             local nameY = screenMin.Y - 5 * scale - drawings.NameText.TextBounds.Y / 2
             
             drawings.NameText.Position = Vector2_new((screenMin.X + screenMax.X) * 0.5, nameY)
@@ -555,6 +572,7 @@ RunService.RenderStepped:Connect(function()
             if #toolNames > 0 then
                 drawings.ItemText.Size = getTextSize(13, scale)
                 drawings.ItemText.Text = table.concat(toolNames, ", ")
+                drawings.ItemText.Color = pColor
                 drawings.ItemText.Visible = true
                 table.insert(itemsToStack, drawings.ItemText)
             else
@@ -568,10 +586,10 @@ RunService.RenderStepped:Connect(function()
             local team = player.Team
             if team then
                 drawings.TeamText.Text = team.Name
-                drawings.TeamText.Color = team.TeamColor.Color
+                drawings.TeamText.Color = pColor
             else
                 drawings.TeamText.Text = "Neutral"
-                drawings.TeamText.Color = Color3.fromRGB(255, 255, 255)
+                drawings.TeamText.Color = pColor
             end
             drawings.TeamText.Size = getTextSize(13, scale)
             drawings.TeamText.Visible = true
@@ -583,6 +601,7 @@ RunService.RenderStepped:Connect(function()
         if ESP.DistanceEnabled then
             drawings.DistanceText.Size = getTextSize(13, scale)
             drawings.DistanceText.Text = dist .. "m"
+            drawings.DistanceText.Color = pColor
             drawings.DistanceText.Visible = true
             table.insert(itemsToStack, drawings.DistanceText)
         else
@@ -648,7 +667,7 @@ RunService.RenderStepped:Connect(function()
         end
 
         if ESP.ThreeDBoxEnabled then
-            update3DLines(drawings, screenCorners)
+            update3DLines(drawings, screenCorners, pTracerColor)
         else
             for i = 1, 12 do
                 drawings.ThreeDLines[i].Visible = false
@@ -666,6 +685,7 @@ RunService.RenderStepped:Connect(function()
                     if localScreen then
                         drawings.BodyTracer.From = localScreen
                         drawings.BodyTracer.To = targetScreen
+                        drawings.BodyTracer.Color = pTracerColor
                         drawings.BodyTracer.Visible = true
                     else
                         drawings.BodyTracer.Visible = false
@@ -680,6 +700,7 @@ RunService.RenderStepped:Connect(function()
             if ESP.TracerMouseEnabled then
                 drawings.TracerMouse.From = Vector2_new(mousePos.X, mousePos.Y)
                 drawings.TracerMouse.To = targetScreen
+                drawings.TracerMouse.Color = pTracerColor
                 drawings.TracerMouse.Visible = true
             else
                 drawings.TracerMouse.Visible = false
@@ -688,6 +709,7 @@ RunService.RenderStepped:Connect(function()
             if ESP.TracerTopEnabled then
                 drawings.TracerTop.From = Vector2_new(viewportSize.X * 0.5, 0)
                 drawings.TracerTop.To = targetScreen
+                drawings.TracerTop.Color = pTracerColor
                 drawings.TracerTop.Visible = true
             else
                 drawings.TracerTop.Visible = false
@@ -696,6 +718,7 @@ RunService.RenderStepped:Connect(function()
             if ESP.TracerBottomEnabled then
                 drawings.TracerBottom.From = Vector2_new(viewportSize.X * 0.5, viewportSize.Y)
                 drawings.TracerBottom.To = targetScreen
+                drawings.TracerBottom.Color = pTracerColor
                 drawings.TracerBottom.Visible = true
             else
                 drawings.TracerBottom.Visible = false
