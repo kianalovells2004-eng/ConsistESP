@@ -56,9 +56,6 @@ leftSection:AddToggle({
                 if library.Flags.BoxStreak then
                     library.Flags.BoxStreak:SetValue(false)
                 end
-                if library.Flags.StreakGlow then
-                    library.Flags.StreakGlow:SetValue(false)
-                end
             end)
         end
     end
@@ -107,17 +104,6 @@ leftSection:AddToggle({
     end
 })
 
-leftSection:AddToggle({
-    Name = "Streak Glow",
-    Flag = "StreakGlow",
-    Value = true,
-    Callback = function(value)
-        ESP:ToggleStreakGlow(value)
-    end
-})
-
--- if your Pepsi UI build errors on this slider, just delete the block
--- (slider option names vary slightly between builds of the library)
 leftSection:AddSlider({
     Name = "Streak Speed",
     Flag = "StreakSpeed",
@@ -166,15 +152,6 @@ leftSection:AddToggle({
 })
 
 leftSection:AddToggle({
-    Name = "Profile Picture",
-    Flag = "ProfilePicture",
-    Value = false,
-    Callback = function(value)
-        ESP:ToggleProfilePicture(value)
-    end
-})
-
-leftSection:AddToggle({
     Name = "Distance",
     Flag = "DistanceESP",
     Value = false,
@@ -217,11 +194,11 @@ local rightSection = mainTab:CreateSection({
 })
 
 rightSection:AddToggle({
-    Name = "Tracer (Local)",
-    Flag = "TracerLocal",
+    Name = "Body Tracer",
+    Flag = "BodyTracer",
     Value = false,
     Callback = function(value)
-        ESP:ToggleTracerLocal(value)
+        ESP:ToggleBodyTracer(value)
     end
 })
 
@@ -286,15 +263,6 @@ colorSection:AddColorpicker({
 })
 
 colorSection:AddColorpicker({
-    Name = "Streak Glow Color",
-    Flag = "StreakGlowColor",
-    Value = Color3.fromRGB(0, 150, 255),
-    Callback = function(color)
-        ESP:SetStreakGlowColor(color)
-    end
-})
-
-colorSection:AddColorpicker({
     Name = "Text Color",
     Flag = "TextColor",
     Value = Color3.fromRGB(255, 255, 255),
@@ -315,7 +283,7 @@ colorSection:AddColorpicker({
 -- 8. Theme Designer
 window:CreateDesigner({
     Credit = true,
-    Info = "Consist ESP v1.6"
+    Info = "Consist ESP v1.8"
 })
 
 -- 9. Unload
@@ -323,4 +291,4 @@ window.Hide = function()
     ESP:Unload()
 end
 
-print("Consist ESP Loaded Successfully (v1.6)!")
+print("Consist ESP Loaded Successfully (v1.8)!")
