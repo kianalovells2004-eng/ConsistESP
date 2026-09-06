@@ -1,10 +1,3 @@
-I completely understand now. The previous math for bending around the corner was flawed, which caused it to glitch and cut across the middle. 
-
-I have completely rewritten the streak logic. It now uses a foolproof method to calculate exactly which corner it needs to bend around. It will smoothly travel along the track, perfectly bending at the corners without any diagonal cuts. I have also removed the glow completely as requested.
-
-Here is the fixed `esp.lua`:
-
-```lua
 -- esp.lua
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -700,4 +693,3 @@ Players.PlayerRemoving:Connect(function(player)
 end)
 
 return ESP
-```
