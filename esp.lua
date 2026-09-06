@@ -1,3 +1,4 @@
+-- esp.lua
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace") 
@@ -34,7 +35,7 @@ local ESP = {
     TextColor = Color3.fromRGB(255, 255, 255),
     TracerColor = Color3.fromRGB(255, 255, 255),
     StreakColor = Color3.fromRGB(0, 255, 255),
-    StreakGlowColor = Color3.fromRGB(100, 200, 255),
+    StreakGlowColor = Color3.fromRGB(0, 150, 255),
     Drawings = {}
 }
 
@@ -86,10 +87,10 @@ local function createDrawings(player)
         TracerMouse = newDrawing("Line", { Color = ESP.TracerColor, Thickness = 1.5, Transparency = 1 }),
         TracerTop = newDrawing("Line", { Color = ESP.TracerColor, Thickness = 1.5, Transparency = 1 }),
         TracerBottom = newDrawing("Line", { Color = ESP.TracerColor, Thickness = 1.5, Transparency = 1 }),
-        BoxStreak1 = newDrawing("Line", { Color = ESP.StreakColor, Thickness = 2, Transparency = 1 }),
-        BoxStreak2 = newDrawing("Line", { Color = ESP.StreakColor, Thickness = 2, Transparency = 1 }),
-        BoxStreakGlow1 = newDrawing("Line", { Color = ESP.StreakGlowColor, Thickness = 4, Transparency = 0.5 }),
-        BoxStreakGlow2 = newDrawing("Line", { Color = ESP.StreakGlowColor, Thickness = 4, Transparency = 0.5 })
+        BoxStreak1 = newDrawing("Line", { Color = ESP.StreakColor, Thickness = 2.5, Transparency = 1 }),
+        BoxStreak2 = newDrawing("Line", { Color = ESP.StreakColor, Thickness = 2.5, Transparency = 1 }),
+        BoxStreakGlow1 = newDrawing("Line", { Color = ESP.StreakGlowColor, Thickness = 5, Transparency = 0.4 }),
+        BoxStreakGlow2 = newDrawing("Line", { Color = ESP.StreakGlowColor, Thickness = 5, Transparency = 0.4 })
     }
 
     for i = 1, 12 do
@@ -298,14 +299,14 @@ local function updateCornerBox(drawings, screenMin, screenMax, boxColor)
     local br = screenMax
 
     local positions = {
-        {From = tl, To = tl + Vector2.new(cornerLen, 0)}, -- TL-H
-        {From = tl, To = tl + Vector2.new(0, cornerLen)}, -- TL-V
-        {From = tr, To = tr - Vector2.new(cornerLen, 0)}, -- TR-H
-        {From = tr, To = tr + Vector2.new(0, cornerLen)}, -- TR-V
-        {From = bl, To = bl + Vector2.new(cornerLen, 0)}, -- BL-H
-        {From = bl, To = bl - Vector2.new(0, cornerLen)}, -- BL-V
-        {From = br, To = br - Vector2.new(cornerLen, 0)}, -- BR-H
-        {From = br, To = br - Vector2.new(0, cornerLen)}  -- BR-V
+        {From = tl, To = tl + Vector2.new(cornerLen, 0)},
+        {From = tl, To = tl + Vector2.new(0, cornerLen)},
+        {From = tr, To = tr - Vector2.new(cornerLen, 0)},
+        {From = tr, To = tr + Vector2.new(0, cornerLen)},
+        {From = bl, To = bl + Vector2.new(cornerLen, 0)},
+        {From = bl, To = bl - Vector2.new(0, cornerLen)},
+        {From = br, To = br - Vector2.new(cornerLen, 0)},
+        {From = br, To = br - Vector2.new(0, cornerLen)}
     }
 
     for i, pos in ipairs(positions) do
@@ -400,13 +401,13 @@ RunService.RenderStepped:Connect(function()
             drawings.BoxOutline.Position = screenMin - Vector2.new(1, 1)
             drawings.BoxOutline.Visible = true
             
-            -- Box Streak Logic
+            -- Box Streak Logic (Slowly alternating around the track)
             if ESP.BoxStreakEnabled then
                 local w = boxSize.X
                 local h = boxSize.Y
                 local P = 2 * (w + h)
-                local speed = 120
-                local len = 60
+                local speed = 60 -- Much slower speed
+                local len = 80 -- Length of the streak
                 
                 local function mapPoint(p)
                     p = p % P
@@ -487,7 +488,6 @@ RunService.RenderStepped:Connect(function()
             drawings.BoxFill.Visible = false
         end
 
-        -- Name / Display Name
         if ESP.NameEnabled or ESP.DisplayNameEnabled then
             local name = ESP.CustomNames[player.Name]
             if not name then
@@ -501,7 +501,7 @@ RunService.RenderStepped:Connect(function()
             local nameY = screenMin.Y - 5 - drawings.NameText.TextBounds.Y / 2
             
             if ESP.ProfilePictureEnabled then
-                nameY = nameY - 40 -- Move name up if picture is drawn above it
+                nameY = nameY - 40
             end
             
             drawings.NameText.Position = Vector2.new((screenMin.X + screenMax.X) / 2, nameY)
@@ -510,7 +510,6 @@ RunService.RenderStepped:Connect(function()
             drawings.NameText.Visible = false
         end
 
-        -- Profile Picture
         if ESP.ProfilePictureEnabled then
             if not drawings.ProfilePic.Data then
                 spawn(function()
@@ -536,7 +535,6 @@ RunService.RenderStepped:Connect(function()
             drawings.ProfilePic.Visible = false
         end
 
-        -- Item / Tool ESP
         if ESP.ItemEnabled then
             local toolNames = {}
             for _, child in ipairs(character:GetChildren()) do
@@ -556,7 +554,6 @@ RunService.RenderStepped:Connect(function()
             drawings.ItemText.Visible = false
         end
 
-        -- Team Indicator (Right side, under Item Text)
         if ESP.TeamIndicatorEnabled then
             local team = player.Team
             if team then
