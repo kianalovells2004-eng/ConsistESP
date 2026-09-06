@@ -28,10 +28,10 @@ local ESP = {
     StreakSpeed = 1,
     TeamCheckEnabled = false,
     TeamColorEnabled = false, 
-    WhitelistedTeams = {}, -- New table for team selectors
     NameEnabled = false,
     DisplayNameEnabled = false,
     ItemEnabled = false,
+    HostileEnabled = false, -- New Hostile toggle
     TeamIndicatorEnabled = false,
     ThreeDBoxEnabled = false,
     BodyTracerEnabled = false,
@@ -83,6 +83,7 @@ local function createDrawings(player)
         BoxOutline = newDrawing("Square", { Color = Color3.fromRGB(0, 0, 0), Thickness = 1.5, Filled = false, Transparency = 0.5 }),
         BoxFill = newDrawing("Square", { Color = ESP.BoxFillColor, Thickness = 1, Filled = true, Transparency = 0.6 }),
         NameText = newDrawing("Text", { Color = ESP.TextColor, Size = 14, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = font, Transparency = 1 }),
+        HostileText = newDrawing("Text", { Color = Color3.fromRGB(255, 50, 50), Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = font, Transparency = 1 }),
         ItemText = newDrawing("Text", { Color = ESP.TextColor, Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = font, Transparency = 1 }),
         TeamText = newDrawing("Text", { Color = ESP.TextColor, Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = font, Transparency = 1 }),
         DistanceText = newDrawing("Text", { Color = ESP.TextColor, Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = font, Transparency = 1 }),
@@ -123,6 +124,7 @@ local function hideAllDrawings(drawings)
     drawings.BoxOutline.Visible = false
     drawings.BoxFill.Visible = false
     drawings.NameText.Visible = false
+    drawings.HostileText.Visible = false
     drawings.ItemText.Visible = false
     drawings.TeamText.Visible = false
     drawings.DistanceText.Visible = false
@@ -210,20 +212,9 @@ end
 
 function ESP:ToggleTeamCheck(state) self.TeamCheckEnabled = state end
 function ESP:ToggleTeamColor(state) self.TeamColorEnabled = state end
-function ESP:ToggleWhitelistedTeam(teamName, state) 
-    self.WhitelistedTeams[teamName] = state 
-    -- Hide drawings immediately if turned off
-    if not state then
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player.Team and player.Team.Name == teamName then
-                local drawings = self.Drawings[player]
-                if drawings then hideAllDrawings(drawings) end
-            end
-        end
-    end
-end
 function ESP:ToggleName(state) self.NameEnabled = state if not state then for _, d in pairs(self.Drawings) do d.NameText.Visible = false end end end
 function ESP:ToggleDisplayName(state) self.DisplayNameEnabled = state if not state then for _, d in pairs(self.Drawings) do d.NameText.Visible = false end end end
+function ESP:ToggleHostile(state) self.HostileEnabled = state if not state then for _, d in pairs(self.Drawings) do d.HostileText.Visible = false end end end
 function ESP:ToggleItem(state) self.ItemEnabled = state if not state then for _, d in pairs(self.Drawings) do d.ItemText.Visible = false end end end
 function ESP:ToggleTeamIndicator(state) self.TeamIndicatorEnabled = state if not state then for _, d in pairs(self.Drawings) do d.TeamText.Visible = false end end end
 function ESP:Toggle3DBox(state) self.ThreeDBoxEnabled = state if not state then for _, d in pairs(self.Drawings) do for i = 1, 12 do d.ThreeDLines[i].Visible = false d.ThreeDOutlines[i].Visible = false end end end end
@@ -406,19 +397,11 @@ RunService.RenderStepped:Connect(function()
             continue
         end
 
-        -- Team Filter Logic
-        local pTeamName = player.Team and player.Team.Name or "Neutral"
-        if ESP.WhitelistedTeams[pTeamName] == false then
-            local drawings = ESP.Drawings[player]
-            if drawings then hideAllDrawings(drawings) end
-            continue
-        end
-
         local character = player.Character
         local humanoid = character and character:FindFirstChildOfClass("Humanoid")
         local rootPart = character and character:FindFirstChild("HumanoidRootPart")
         local isValid = character and humanoid and humanoid.Health > 0 and rootPart
-        local shouldDrawAny = (boxOn or ESP.CornerBoxEnabled or fillOn or streakOn or ESP.NameEnabled or ESP.DisplayNameEnabled or ESP.ItemEnabled or ESP.TeamIndicatorEnabled or ESP.ThreeDBoxEnabled
+        local shouldDrawAny = (boxOn or ESP.CornerBoxEnabled or fillOn or streakOn or ESP.NameEnabled or ESP.DisplayNameEnabled or ESP.ItemEnabled or ESP.HostileEnabled or ESP.TeamIndicatorEnabled or ESP.ThreeDBoxEnabled
             or ESP.BodyTracerEnabled or ESP.TracerMouseEnabled or ESP.TracerTopEnabled or ESP.TracerBottomEnabled
             or ESP.DistanceEnabled or ESP.HealthBarEnabled or ESP.HealthTextEnabled) and isValid
 
@@ -577,11 +560,26 @@ RunService.RenderStepped:Connect(function()
             drawings.NameText.Visible = false
         end
 
-        -- Right-side Text Stacking Logic (Item -> Team -> Distance)
+        -- Right-side Text Stacking Logic (Hostile -> Item -> Team -> Distance)
         local rightX = screenMax.X + 4 * scale
         local centerY = (screenMin.Y + screenMax.Y) * 0.5
         local gap = 4 * scale
         local itemsToStack = {}
+
+        -- Hostile Indicator (Top)
+        if ESP.HostileEnabled then
+            local isHostile = character:GetAttribute("Hostile") == true or player:GetAttribute("Hostile") == true
+            if isHostile then
+                drawings.HostileText.Size = getTextSize(13, scale)
+                drawings.HostileText.Text = "Hostile"
+                drawings.HostileText.Visible = true
+                table.insert(itemsToStack, 1, drawings.HostileText) -- Force to the very top
+            else
+                drawings.HostileText.Visible = false
+            end
+        else
+            drawings.HostileText.Visible = false
+        end
 
         if ESP.ItemEnabled then
             local toolNames = {}
