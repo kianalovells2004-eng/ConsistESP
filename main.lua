@@ -115,17 +115,6 @@ leftSection:AddSlider({
     end
 })
 
--- Font Dropdown (Changed Values to List for Pepsi UI compatibility)
-leftSection:AddDropdown({
-    Name = "Text Font",
-    Flag = "TextFont",
-    List = {"UI", "System", "Plex", "Monospace", "Arial"},
-    Value = "Monospace",
-    Callback = function(value)
-        ESP:SetFont(Drawing.Fonts[value])
-    end
-})
-
 leftSection:AddToggle({
     Name = "Name ESP",
     Flag = "NameESP",
@@ -246,6 +235,15 @@ local colorSection = mainTab:CreateSection({
     Side = "Left"
 })
 
+colorSection:AddToggle({
+    Name = "Team Color ESP",
+    Flag = "TeamColorESP",
+    Value = false,
+    Callback = function(value)
+        ESP:ToggleTeamColor(value)
+    end
+})
+
 colorSection:AddColorpicker({
     Name = "Box Color",
     Flag = "BoxColor",
@@ -291,15 +289,37 @@ colorSection:AddColorpicker({
     end
 })
 
--- 8. Theme Designer
-window:CreateDesigner({
-    Credit = true,
-    Info = "Consist ESP v2.0"
+-- 8. Team Filter Section
+local teamFilterSection = mainTab:CreateSection({
+    Name = "Team Filter",
+    Side = "Right"
 })
 
--- 9. Unload
+local Teams = game:GetService("Teams")
+for _, team in ipairs(Teams:GetTeams()) do
+    local teamName = team.Name
+    -- Default to true so all teams show initially
+    ESP.WhitelistedTeams[teamName] = true 
+    
+    teamFilterSection:AddToggle({
+        Name = "Show " .. teamName,
+        Flag = "TeamFilter_" .. teamName,
+        Value = true,
+        Callback = function(value)
+            ESP:ToggleWhitelistedTeam(teamName, value)
+        end
+    })
+end
+
+-- 9. Theme Designer
+window:CreateDesigner({
+    Credit = true,
+    Info = "Consist ESP v2.3"
+})
+
+-- 10. Unload
 window.Hide = function()
     ESP:Unload()
 end
 
-print("Consist ESP Loaded Successfully (v2.0)!")
+print("Consist ESP Loaded Successfully (v2.3)!")
