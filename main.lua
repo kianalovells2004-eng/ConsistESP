@@ -1,6 +1,5 @@
 -- loader.lua
 -- Pepsi UI + ESP Loader
--- Fetches ESP module from GitHub and integrates with Pepsi UI
 
 -- 1. Load Pepsi UI
 local library = loadstring(game:GetObjects("rbxassetid://7657867786")[1].Source)("Pepsi's UI Library")
@@ -95,11 +94,38 @@ leftSection:AddToggle({
 })
 
 leftSection:AddToggle({
+    Name = "Display Name",
+    Flag = "DisplayName",
+    Value = false,
+    Callback = function(value)
+        ESP:ToggleDisplayName(value)
+    end
+})
+
+leftSection:AddToggle({
     Name = "Item ESP (Tool)",
     Flag = "ItemESP",
     Value = false,
     Callback = function(value)
         ESP:ToggleItem(value)
+    end
+})
+
+leftSection:AddToggle({
+    Name = "Team Indicator",
+    Flag = "TeamIndicator",
+    Value = false,
+    Callback = function(value)
+        ESP:ToggleTeamIndicator(value)
+    end
+})
+
+leftSection:AddToggle({
+    Name = "Profile Picture",
+    Flag = "ProfilePicture",
+    Value = false,
+    Callback = function(value)
+        ESP:ToggleProfilePicture(value)
     end
 })
 
@@ -226,7 +252,7 @@ colorSection:AddColorpicker({
 -- 8. Theme Designer
 window:CreateDesigner({
     Credit = true,
-    Info = "Consist ESP v1.1"
+    Info = "Consist ESP v1.2"
 })
 
 -- 9. Unload
@@ -234,4 +260,4 @@ window.Hide = function()
     ESP:Unload()
 end
 
-print("Consist ESP Loaded Successfully (v1.1)!")
+print("Consist ESP Loaded Successfully (v1.2)!")
