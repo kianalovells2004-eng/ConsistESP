@@ -14,6 +14,7 @@ local ESP = {
     BoxEnabled = false,
     BoxFillEnabled = false,
     NameEnabled = false,
+    ItemEnabled = false,
     ThreeDBoxEnabled = false,
     TracerLocalEnabled = false,
     TracerMouseEnabled = false,
@@ -40,10 +41,10 @@ local function newDrawing(type, properties)
 end
 
 -- Health color scheme (based on % of MaxHealth, so 100 = full)
-local HEALTH_COLOR_FULL      = Color3.fromRGB(144, 238, 144) -- 100     -> light green
-local HEALTH_COLOR_MIDYELLOW = Color3.fromRGB(255, 255, 0)   -- 70 - 65 -> mid yellow
-local HEALTH_COLOR_ORANGE    = Color3.fromRGB(255, 185, 0)   -- 50 - 45 -> yellowish / more orangey
-local HEALTH_COLOR_RED       = Color3.fromRGB(255, 50, 50)   -- 15 - 10 -> red (stays red below)
+local HEALTH_COLOR_FULL      = Color3.fromRGB(0, 255, 0)    -- 100     -> bright green
+local HEALTH_COLOR_MIDYELLOW = Color3.fromRGB(255, 255, 0)  -- 70 - 65 -> mid yellow
+local HEALTH_COLOR_ORANGE    = Color3.fromRGB(255, 185, 0)  -- 50 - 45 -> yellowish / more orangey
+local HEALTH_COLOR_RED       = Color3.fromRGB(255, 50, 50)  -- 15 - 10 -> red (stays red below)
 
 local function lerp(a, b, t)
     return a + (b - a) * t
@@ -55,7 +56,7 @@ end
 
 -- Health fraction (0 - 1) -> color.
 -- Holds the color inside each requested range and blends smoothly between them:
---   100      -> light green
+--   100      -> bright green
 --   70 - 65  -> mid yellow
 --   50 - 45  -> yellowish / more orangey
 --   15 - 10  -> red
@@ -81,6 +82,7 @@ local function createDrawings(player)
         BoxOutline = newDrawing("Square", { Color = Color3.fromRGB(0, 0, 0), Thickness = 1.5, Filled = false, Transparency = 0.5 }),
         BoxFill = newDrawing("Square", { Color = ESP.BoxFillColor, Thickness = 1, Filled = true, Transparency = 0.6 }),
         NameText = newDrawing("Text", { Color = ESP.TextColor, Size = 14, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = Drawing.Fonts.UI, Transparency = 1 }),
+        ItemText = newDrawing("Text", { Color = ESP.TextColor, Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = Drawing.Fonts.UI, Transparency = 1 }),
         DistanceText = newDrawing("Text", { Color = ESP.TextColor, Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = Drawing.Fonts.UI, Transparency = 1 }),
         HealthBarOutline = newDrawing("Square", { Color = Color3.fromRGB(0, 0, 0), Thickness = 1.5, Filled = false, Transparency = 0.5 }),
         HealthBarBack = newDrawing("Square", { Color = Color3.fromRGB(0, 0, 0), Thickness = 1, Filled = true, Transparency = 0.6 }),
@@ -107,6 +109,7 @@ local function hideAllDrawings(drawings)
     drawings.BoxOutline.Visible = false
     drawings.BoxFill.Visible = false
     drawings.NameText.Visible = false
+    drawings.ItemText.Visible = false
     drawings.DistanceText.Visible = false
     drawings.HealthBarOutline.Visible = false
     drawings.HealthBarBack.Visible = false
@@ -126,6 +129,7 @@ end
 function ESP:ToggleBox(state) self.BoxEnabled = state if not state then for _, drawings in pairs(self.Drawings) do drawings.Box.Visible = false drawings.BoxOutline.Visible = false end end end
 function ESP:ToggleBoxFill(state) self.BoxFillEnabled = state if not state then for _, drawings in pairs(self.Drawings) do drawings.BoxFill.Visible = false end end end
 function ESP:ToggleName(state) self.NameEnabled = state if not state then for _, drawings in pairs(self.Drawings) do drawings.NameText.Visible = false end end end
+function ESP:ToggleItem(state) self.ItemEnabled = state if not state then for _, drawings in pairs(self.Drawings) do drawings.ItemText.Visible = false end end end
 function ESP:Toggle3DBox(state) self.ThreeDBoxEnabled = state if not state then for _, drawings in pairs(self.Drawings) do for i = 1, 12 do drawings.ThreeDLines[i].Visible = false drawings.ThreeDOutlines[i].Visible = false end end end end
 function ESP:ToggleTracerLocal(state) self.TracerLocalEnabled = state if not state then for _, drawings in pairs(self.Drawings) do drawings.TracerLocal.Visible = false end end end
 function ESP:ToggleTracerMouse(state) self.TracerMouseEnabled = state if not state then for _, drawings in pairs(self.Drawings) do drawings.TracerMouse.Visible = false end end end
@@ -141,7 +145,7 @@ function ESP:ClearCustomName(playerName) self.CustomNames[playerName] = nil end
 function ESP:SetBoxColor(color) self.BoxColor = color for _, drawings in pairs(self.Drawings) do drawings.Box.Color = color end end
 function ESP:SetBoxFillColor(color) self.BoxFillColor = color for _, drawings in pairs(self.Drawings) do drawings.BoxFill.Color = color end end
 -- Note: HealthText is no longer affected here, its color is health-driven now.
-function ESP:SetTextColor(color) self.TextColor = color for _, drawings in pairs(self.Drawings) do drawings.NameText.Color = color drawings.DistanceText.Color = color end end
+function ESP:SetTextColor(color) self.TextColor = color for _, drawings in pairs(self.Drawings) do drawings.NameText.Color = color drawings.ItemText.Color = color drawings.DistanceText.Color = color end end
 function ESP:SetTracerColor(color) self.TracerColor = color for _, drawings in pairs(self.Drawings) do drawings.TracerLocal.Color = color drawings.TracerMouse.Color = color drawings.TracerTop.Color = color drawings.TracerBottom.Color = color for i = 1, 12 do drawings.ThreeDLines[i].Color = color end end end
 
 function ESP:Toggle(state)
@@ -149,6 +153,7 @@ function ESP:Toggle(state)
     self:ToggleBox(state)
     self:ToggleBoxFill(state)
     self:ToggleName(state)
+    self:ToggleItem(state)
     self:Toggle3DBox(state)
     self:ToggleTracerLocal(state)
     self:ToggleTracerMouse(state)
@@ -222,7 +227,7 @@ RunService.RenderStepped:Connect(function()
         local humanoid = character and character:FindFirstChildOfClass("Humanoid")
         local rootPart = character and character:FindFirstChild("HumanoidRootPart")
         local isValid = character and humanoid and humanoid.Health > 0 and rootPart
-        local shouldDrawAny = (ESP.BoxEnabled or ESP.BoxFillEnabled or ESP.NameEnabled or ESP.ThreeDBoxEnabled
+        local shouldDrawAny = (ESP.BoxEnabled or ESP.BoxFillEnabled or ESP.NameEnabled or ESP.ItemEnabled or ESP.ThreeDBoxEnabled
             or ESP.TracerLocalEnabled or ESP.TracerMouseEnabled or ESP.TracerTopEnabled or ESP.TracerBottomEnabled
             or ESP.DistanceEnabled or ESP.HealthBarEnabled or ESP.HealthTextEnabled) and isValid
 
@@ -301,6 +306,31 @@ RunService.RenderStepped:Connect(function()
             drawings.NameText.Visible = true
         else
             drawings.NameText.Visible = false
+        end
+
+        -- Item / Tool ESP
+        -- Shows the tool(s) the player is holding, to the right of the box,
+        -- vertically centered (below the health number which sits at the top).
+        if ESP.ItemEnabled then
+            local toolNames = {}
+            for _, child in ipairs(character:GetChildren()) do
+                if child:IsA("Tool") then
+                    table.insert(toolNames, child.Name)
+                end
+            end
+            if #toolNames > 0 then
+                drawings.ItemText.Text = table.concat(toolNames, ", ")
+                local textBounds = drawings.ItemText.TextBounds
+                drawings.ItemText.Position = Vector2.new(
+                    screenMax.X + 4 + textBounds.X / 2,
+                    (screenMin.Y + screenMax.Y) / 2
+                )
+                drawings.ItemText.Visible = true
+            else
+                drawings.ItemText.Visible = false
+            end
+        else
+            drawings.ItemText.Visible = false
         end
 
         -- Distance
@@ -433,6 +463,7 @@ Players.PlayerRemoving:Connect(function(player)
         drawings.BoxOutline:Remove()
         drawings.BoxFill:Remove()
         drawings.NameText:Remove()
+        drawings.ItemText:Remove()
         drawings.DistanceText:Remove()
         drawings.HealthBarOutline:Remove()
         drawings.HealthBarBack:Remove()
