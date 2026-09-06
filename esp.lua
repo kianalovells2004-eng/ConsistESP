@@ -27,7 +27,8 @@ local ESP = {
     BoxStreakEnabled = false,
     StreakSpeed = 1,
     TeamCheckEnabled = false,
-    TeamColorEnabled = false, -- New Team Color toggle
+    TeamColorEnabled = false, 
+    WhitelistedTeams = {}, -- New table for team selectors
     NameEnabled = false,
     DisplayNameEnabled = false,
     ItemEnabled = false,
@@ -209,6 +210,18 @@ end
 
 function ESP:ToggleTeamCheck(state) self.TeamCheckEnabled = state end
 function ESP:ToggleTeamColor(state) self.TeamColorEnabled = state end
+function ESP:ToggleWhitelistedTeam(teamName, state) 
+    self.WhitelistedTeams[teamName] = state 
+    -- Hide drawings immediately if turned off
+    if not state then
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player.Team and player.Team.Name == teamName then
+                local drawings = self.Drawings[player]
+                if drawings then hideAllDrawings(drawings) end
+            end
+        end
+    end
+end
 function ESP:ToggleName(state) self.NameEnabled = state if not state then for _, d in pairs(self.Drawings) do d.NameText.Visible = false end end end
 function ESP:ToggleDisplayName(state) self.DisplayNameEnabled = state if not state then for _, d in pairs(self.Drawings) do d.NameText.Visible = false end end end
 function ESP:ToggleItem(state) self.ItemEnabled = state if not state then for _, d in pairs(self.Drawings) do d.ItemText.Visible = false end end end
@@ -388,6 +401,14 @@ RunService.RenderStepped:Connect(function()
         if player == LocalPlayer then continue end
         
         if ESP.TeamCheckEnabled and localTeam and player.Team == localTeam then
+            local drawings = ESP.Drawings[player]
+            if drawings then hideAllDrawings(drawings) end
+            continue
+        end
+
+        -- Team Filter Logic
+        local pTeamName = player.Team and player.Team.Name or "Neutral"
+        if ESP.WhitelistedTeams[pTeamName] == false then
             local drawings = ESP.Drawings[player]
             if drawings then hideAllDrawings(drawings) end
             continue
@@ -654,7 +675,8 @@ RunService.RenderStepped:Connect(function()
                 drawings.HealthText.Text = "[" .. math_floor(humanoid.Health) .. "]"
                 drawings.HealthText.Color = getHealthColor(hp)
                 local textBounds = drawings.HealthText.TextBounds
-                drawings.HealthText.Position = Vector2_new(screenMax.X + 4 * scale + textBounds.X * 0.5, screenMin.Y - 2 * scale - textBounds.Y * 0.5)
+                -- Moved to the left of the health bar, level with the top
+                drawings.HealthText.Position = Vector2_new(barX - textBounds.X * 0.5 - 4 * scale, screenMin.Y - textBounds.Y * 0.5)
                 drawings.HealthText.Visible = true
             else
                 drawings.HealthText.Visible = false
