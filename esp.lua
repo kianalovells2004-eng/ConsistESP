@@ -126,8 +126,37 @@ local function hideAllDrawings(drawings)
 end
 
 -- Toggle functions
-function ESP:ToggleBox(state) self.BoxEnabled = state if not state then for _, drawings in pairs(self.Drawings) do drawings.Box.Visible = false drawings.BoxOutline.Visible = false end end end
-function ESP:ToggleBoxFill(state) self.BoxFillEnabled = state if not state then for _, drawings in pairs(self.Drawings) do drawings.BoxFill.Visible = false end end end
+
+-- Box ESP. Turning it OFF also force-disables Box Fill (fill depends on the box).
+function ESP:ToggleBox(state)
+    self.BoxEnabled = state
+    if not state then
+        self.BoxFillEnabled = false
+    end
+    if not state then
+        for _, drawings in pairs(self.Drawings) do
+            drawings.Box.Visible = false
+            drawings.BoxOutline.Visible = false
+            drawings.BoxFill.Visible = false
+        end
+    end
+end
+
+-- Box Fill. Can only be enabled while Box ESP is enabled.
+function ESP:ToggleBoxFill(state)
+    if state and not self.BoxEnabled then
+        -- Dependency: fill requires the 2D box. Silently refuse.
+        self.BoxFillEnabled = false
+        return
+    end
+    self.BoxFillEnabled = state
+    if not state then
+        for _, drawings in pairs(self.Drawings) do
+            drawings.BoxFill.Visible = false
+        end
+    end
+end
+
 function ESP:ToggleName(state) self.NameEnabled = state if not state then for _, drawings in pairs(self.Drawings) do drawings.NameText.Visible = false end end end
 function ESP:ToggleItem(state) self.ItemEnabled = state if not state then for _, drawings in pairs(self.Drawings) do drawings.ItemText.Visible = false end end end
 function ESP:Toggle3DBox(state) self.ThreeDBoxEnabled = state if not state then for _, drawings in pairs(self.Drawings) do for i = 1, 12 do drawings.ThreeDLines[i].Visible = false drawings.ThreeDOutlines[i].Visible = false end end end end
@@ -150,8 +179,8 @@ function ESP:SetTracerColor(color) self.TracerColor = color for _, drawings in p
 
 function ESP:Toggle(state)
     self.Enabled = state
-    self:ToggleBox(state)
-    self:ToggleBoxFill(state)
+    self:ToggleBox(state) -- also handles BoxFill dependency (box off -> fill off)
+    self:ToggleBoxFill(state and self.BoxEnabled)
     self:ToggleName(state)
     self:ToggleItem(state)
     self:Toggle3DBox(state)
@@ -289,8 +318,8 @@ RunService.RenderStepped:Connect(function()
             drawings.BoxOutline.Visible = false
         end
 
-        -- Box Fill
-        if ESP.BoxFillEnabled then
+        -- Box Fill (guarded: only draws while the box itself is enabled)
+        if ESP.BoxFillEnabled and ESP.BoxEnabled then
             drawings.BoxFill.Size = Vector2.new(screenMax.X - screenMin.X, screenMax.Y - screenMin.Y)
             drawings.BoxFill.Position = screenMin
             drawings.BoxFill.Visible = true
