@@ -1,9 +1,6 @@
--- esp.lua
--- ESP Module - Pure ESP logic, optimized with Team Check, Corner Boxes, Display Names, Team Indicator, Profile Pic
-
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local Workspace = game:GetService("Workspace")
+local Workspace = game:GetService("Workspace") 
 local UserInputService = game:GetService("UserInputService")
 
 local LocalPlayer = Players.LocalPlayer
@@ -16,6 +13,7 @@ local ESP = {
     BoxEnabled = false,
     CornerBoxEnabled = false,
     BoxFillEnabled = false,
+    BoxStreakEnabled = false,
     TeamCheckEnabled = false,
     NameEnabled = false,
     DisplayNameEnabled = false,
@@ -35,6 +33,8 @@ local ESP = {
     BoxFillColor = Color3.fromRGB(255, 255, 255),
     TextColor = Color3.fromRGB(255, 255, 255),
     TracerColor = Color3.fromRGB(255, 255, 255),
+    StreakColor = Color3.fromRGB(0, 255, 255),
+    StreakGlowColor = Color3.fromRGB(100, 200, 255),
     Drawings = {}
 }
 
@@ -85,7 +85,11 @@ local function createDrawings(player)
         TracerLocal = newDrawing("Line", { Color = ESP.TracerColor, Thickness = 1.5, Transparency = 1 }),
         TracerMouse = newDrawing("Line", { Color = ESP.TracerColor, Thickness = 1.5, Transparency = 1 }),
         TracerTop = newDrawing("Line", { Color = ESP.TracerColor, Thickness = 1.5, Transparency = 1 }),
-        TracerBottom = newDrawing("Line", { Color = ESP.TracerColor, Thickness = 1.5, Transparency = 1 })
+        TracerBottom = newDrawing("Line", { Color = ESP.TracerColor, Thickness = 1.5, Transparency = 1 }),
+        BoxStreak1 = newDrawing("Line", { Color = ESP.StreakColor, Thickness = 2, Transparency = 1 }),
+        BoxStreak2 = newDrawing("Line", { Color = ESP.StreakColor, Thickness = 2, Transparency = 1 }),
+        BoxStreakGlow1 = newDrawing("Line", { Color = ESP.StreakGlowColor, Thickness = 4, Transparency = 0.5 }),
+        BoxStreakGlow2 = newDrawing("Line", { Color = ESP.StreakGlowColor, Thickness = 4, Transparency = 0.5 })
     }
 
     for i = 1, 12 do
@@ -126,6 +130,10 @@ local function hideAllDrawings(drawings)
     drawings.TracerMouse.Visible = false
     drawings.TracerTop.Visible = false
     drawings.TracerBottom.Visible = false
+    drawings.BoxStreak1.Visible = false
+    drawings.BoxStreak2.Visible = false
+    drawings.BoxStreakGlow1.Visible = false
+    drawings.BoxStreakGlow2.Visible = false
 end
 
 function ESP:Toggle(state)
@@ -133,6 +141,7 @@ function ESP:Toggle(state)
     self:ToggleBox(state)
     self:ToggleCornerBox(state)
     self:ToggleBoxFill(state and self.BoxEnabled)
+    self:ToggleBoxStreak(state and self.BoxEnabled)
     self:ToggleName(state)
     self:ToggleDisplayName(state)
     self:ToggleItem(state)
@@ -152,10 +161,31 @@ function ESP:ToggleBox(state)
     self.BoxEnabled = state
     if not state then
         self.BoxFillEnabled = false
+        self.BoxStreakEnabled = false
         for _, drawings in pairs(self.Drawings) do
             drawings.Box.Visible = false
             drawings.BoxOutline.Visible = false
             drawings.BoxFill.Visible = false
+            drawings.BoxStreak1.Visible = false
+            drawings.BoxStreak2.Visible = false
+            drawings.BoxStreakGlow1.Visible = false
+            drawings.BoxStreakGlow2.Visible = false
+        end
+    end
+end
+
+function ESP:ToggleBoxStreak(state)
+    if state and not self.BoxEnabled then
+        self.BoxStreakEnabled = false
+        return
+    end
+    self.BoxStreakEnabled = state
+    if not state then
+        for _, d in pairs(self.Drawings) do
+            d.BoxStreak1.Visible = false
+            d.BoxStreak2.Visible = false
+            d.BoxStreakGlow1.Visible = false
+            d.BoxStreakGlow2.Visible = false
         end
     end
 end
@@ -208,6 +238,8 @@ function ESP:SetBoxColor(color) self.BoxColor = color for _, d in pairs(self.Dra
 function ESP:SetBoxFillColor(color) self.BoxFillColor = color for _, d in pairs(self.Drawings) do d.BoxFill.Color = color end end
 function ESP:SetTextColor(color) self.TextColor = color for _, d in pairs(self.Drawings) do d.NameText.Color = color d.ItemText.Color = color d.TeamText.Color = color d.DistanceText.Color = color end end
 function ESP:SetTracerColor(color) self.TracerColor = color for _, d in pairs(self.Drawings) do d.TracerLocal.Color = color d.TracerMouse.Color = color d.TracerTop.Color = color d.TracerBottom.Color = color for i = 1, 12 do d.ThreeDLines[i].Color = color end end end
+function ESP:SetStreakColor(color) self.StreakColor = color for _, d in pairs(self.Drawings) do d.BoxStreak1.Color = color d.BoxStreak2.Color = color end end
+function ESP:SetStreakGlowColor(color) self.StreakGlowColor = color for _, d in pairs(self.Drawings) do d.BoxStreakGlow1.Color = color d.BoxStreakGlow2.Color = color end end
 
 function ESP:Unload()
     self:Toggle(false)
@@ -311,7 +343,7 @@ RunService.RenderStepped:Connect(function()
         local humanoid = character and character:FindFirstChildOfClass("Humanoid")
         local rootPart = character and character:FindFirstChild("HumanoidRootPart")
         local isValid = character and humanoid and humanoid.Health > 0 and rootPart
-        local shouldDrawAny = (ESP.BoxEnabled or ESP.CornerBoxEnabled or ESP.BoxFillEnabled or ESP.NameEnabled or ESP.DisplayNameEnabled or ESP.ItemEnabled or ESP.TeamIndicatorEnabled or ESP.ProfilePictureEnabled or ESP.ThreeDBoxEnabled
+        local shouldDrawAny = (ESP.BoxEnabled or ESP.CornerBoxEnabled or ESP.BoxFillEnabled or ESP.BoxStreakEnabled or ESP.NameEnabled or ESP.DisplayNameEnabled or ESP.ItemEnabled or ESP.TeamIndicatorEnabled or ESP.ProfilePictureEnabled or ESP.ThreeDBoxEnabled
             or ESP.TracerLocalEnabled or ESP.TracerMouseEnabled or ESP.TracerTopEnabled or ESP.TracerBottomEnabled
             or ESP.DistanceEnabled or ESP.HealthBarEnabled or ESP.HealthTextEnabled) and isValid
 
@@ -367,9 +399,75 @@ RunService.RenderStepped:Connect(function()
             drawings.BoxOutline.Size = boxSize + Vector2.new(2, 2)
             drawings.BoxOutline.Position = screenMin - Vector2.new(1, 1)
             drawings.BoxOutline.Visible = true
+            
+            -- Box Streak Logic
+            if ESP.BoxStreakEnabled then
+                local w = boxSize.X
+                local h = boxSize.Y
+                local P = 2 * (w + h)
+                local speed = 120
+                local len = 60
+                
+                local function mapPoint(p)
+                    p = p % P
+                    if p < w then return Vector2.new(screenMin.X + p, screenMin.Y), 0 end
+                    p = p - w
+                    if p < h then return Vector2.new(screenMax.X, screenMin.Y + p), 1 end
+                    p = p - h
+                    if p < w then return Vector2.new(screenMax.X - p, screenMax.Y), 2 end
+                    p = p - w
+                    return Vector2.new(screenMin.X, screenMax.Y - p), 3
+                end
+                
+                local progress = (os.clock() * speed) % P
+                local fromPos, edge1 = mapPoint(progress)
+                local toPos, edge2 = mapPoint(progress + len)
+                
+                local corners = {
+                    screenMin,
+                    Vector2.new(screenMax.X, screenMin.Y),
+                    screenMax,
+                    Vector2.new(screenMin.X, screenMax.Y)
+                }
+                
+                if edge1 == edge2 then
+                    drawings.BoxStreak1.From = fromPos
+                    drawings.BoxStreak1.To = toPos
+                    drawings.BoxStreak1.Visible = true
+                    drawings.BoxStreakGlow1.From = fromPos
+                    drawings.BoxStreakGlow1.To = toPos
+                    drawings.BoxStreakGlow1.Visible = true
+                    drawings.BoxStreak2.Visible = false
+                    drawings.BoxStreakGlow2.Visible = false
+                else
+                    local corner = corners[edge1 + 1]
+                    drawings.BoxStreak1.From = fromPos
+                    drawings.BoxStreak1.To = corner
+                    drawings.BoxStreak1.Visible = true
+                    drawings.BoxStreakGlow1.From = fromPos
+                    drawings.BoxStreakGlow1.To = corner
+                    drawings.BoxStreakGlow1.Visible = true
+                    
+                    drawings.BoxStreak2.From = corner
+                    drawings.BoxStreak2.To = toPos
+                    drawings.BoxStreak2.Visible = true
+                    drawings.BoxStreakGlow2.From = corner
+                    drawings.BoxStreakGlow2.To = toPos
+                    drawings.BoxStreakGlow2.Visible = true
+                end
+            else
+                drawings.BoxStreak1.Visible = false
+                drawings.BoxStreak2.Visible = false
+                drawings.BoxStreakGlow1.Visible = false
+                drawings.BoxStreakGlow2.Visible = false
+            end
         else
             drawings.Box.Visible = false
             drawings.BoxOutline.Visible = false
+            drawings.BoxStreak1.Visible = false
+            drawings.BoxStreak2.Visible = false
+            drawings.BoxStreakGlow1.Visible = false
+            drawings.BoxStreakGlow2.Visible = false
         end
         
         if ESP.CornerBoxEnabled then
