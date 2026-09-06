@@ -600,14 +600,16 @@ RunService.RenderStepped:Connect(function()
             end
             drawings.TeamText.Size = math_floor(13 * scale)
             
-            -- Anchor team indicator perfectly to the top right of the box
+            -- Anchor team indicator strictly to the top right corner, stacking with Health Text
             local teamBounds = drawings.TeamText.TextBounds
-            local teamY = screenMin.Y + 2 * scale + teamBounds.Y * 0.5
+            local healthBounds = drawings.HealthText.TextBounds
             
-            -- If health text is visible, stack the team text neatly underneath it
+            -- Position it directly above the box
+            local teamY = screenMin.Y - 2 * scale - teamBounds.Y * 0.5
+            
+            -- If health text is visible, place team text neatly above it so they stack vertically
             if ESP.HealthTextEnabled then
-                local healthBounds = drawings.HealthText.TextBounds
-                teamY = screenMin.Y + 2 * scale + healthBounds.Y * 0.5 + 4 * scale + teamBounds.Y * 0.5
+                teamY = screenMin.Y - 2 * scale - healthBounds.Y * 0.5 - 2 * scale - teamBounds.Y * 0.5
             end
             
             drawings.TeamText.Position = Vector2_new(screenMax.X + 4 * scale + teamBounds.X * 0.5, teamY)
@@ -656,6 +658,7 @@ RunService.RenderStepped:Connect(function()
                 drawings.HealthText.Text = "[" .. math_floor(humanoid.Health) .. "]"
                 drawings.HealthText.Color = getHealthColor(hp)
                 local textBounds = drawings.HealthText.TextBounds
+                -- Keep it anchored to the top right of the box
                 drawings.HealthText.Position = Vector2_new(screenMax.X + 4 * scale + textBounds.X * 0.5, screenMin.Y - 2 * scale - textBounds.Y * 0.5)
                 drawings.HealthText.Visible = true
             else
