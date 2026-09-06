@@ -10,7 +10,7 @@ local Camera = Workspace.CurrentCamera
 local math_min, math_max, math_floor, math_huge = math.min, math.max, math.floor, math.huge
 local Vector2_new, Vector3_new = Vector2.new, Vector3.new
 
-local STREAK_SEGMENTS = 5 -- capped streak can cross at most 3 corners -> 3 segments, +2 headroom
+local STREAK_SEGMENTS = 4 -- Reduced from 5 to 4 since the streak is smaller and crosses fewer corners
 
 -- 3D box edges (hoisted so it isn't rebuilt every frame)
 local EDGES_3D = {
@@ -25,7 +25,6 @@ local ESP = {
     CornerBoxEnabled = false,
     BoxFillEnabled = false,
     BoxStreakEnabled = false,
-    StreakGlowEnabled = true,
     StreakSpeed = 1,
     TeamCheckEnabled = false,
     NameEnabled = false,
@@ -47,7 +46,6 @@ local ESP = {
     TextColor = Color3.fromRGB(255, 255, 255),
     TracerColor = Color3.fromRGB(255, 255, 255),
     StreakColor = Color3.fromRGB(0, 255, 255),
-    StreakGlowColor = Color3.fromRGB(0, 150, 255),
     Drawings = {}
 }
 
@@ -99,7 +97,6 @@ local function createDrawings(player)
         TracerMouse = newDrawing("Line", { Color = ESP.TracerColor, Thickness = 1.5, Transparency = 1 }),
         TracerTop = newDrawing("Line", { Color = ESP.TracerColor, Thickness = 1.5, Transparency = 1 }),
         TracerBottom = newDrawing("Line", { Color = ESP.TracerColor, Thickness = 1.5, Transparency = 1 }),
-        BoxStreakGlows = {},
         BoxStreaks = {}
     }
 
@@ -113,12 +110,9 @@ local function createDrawings(player)
         drawings.CornerLines[i] = newDrawing("Line", { Color = ESP.BoxColor, Thickness = 1.5, Transparency = 1 })
     end
 
-    -- glow lines are created BEFORE the streak lines so they render underneath
     for i = 1, STREAK_SEGMENTS do
-        drawings.BoxStreakGlows[i] = newDrawing("Line", { Color = ESP.StreakGlowColor, Thickness = 5, Transparency = 0.4 })
-    end
-    for i = 1, STREAK_SEGMENTS do
-        drawings.BoxStreaks[i] = newDrawing("Line", { Color = ESP.StreakColor, Thickness = 2.5, Transparency = 1 })
+        -- Made the streak thinner (1.0 instead of 2.5)
+        drawings.BoxStreaks[i] = newDrawing("Line", { Color = ESP.StreakColor, Thickness = 1.0, Transparency = 1 })
     end
 
     return drawings
@@ -151,7 +145,6 @@ local function hideAllDrawings(drawings)
     drawings.TracerBottom.Visible = false
     for i = 1, STREAK_SEGMENTS do
         drawings.BoxStreaks[i].Visible = false
-        drawings.BoxStreakGlows[i].Visible = false
     end
 end
 
@@ -174,7 +167,6 @@ function ESP:ToggleBox(state)
             drawings.BoxOutline.Visible = false
             drawings.BoxFill.Visible = false
             for _, s in ipairs(drawings.BoxStreaks) do s.Visible = false end
-            for _, g in ipairs(drawings.BoxStreakGlows) do g.Visible = false end
         end
     end
 end
@@ -188,16 +180,6 @@ function ESP:ToggleBoxStreak(state)
     if not state then
         for _, d in pairs(self.Drawings) do
             for _, s in ipairs(d.BoxStreaks) do s.Visible = false end
-            for _, g in ipairs(d.BoxStreakGlows) do g.Visible = false end
-        end
-    end
-end
-
-function ESP:ToggleStreakGlow(state)
-    self.StreakGlowEnabled = state
-    if not state then
-        for _, d in pairs(self.Drawings) do
-            for _, g in ipairs(d.BoxStreakGlows) do g.Visible = false end
         end
     end
 end
@@ -228,7 +210,6 @@ function ESP:ToggleBoxFill(state)
 end
 
 function ESP:ToggleTeamCheck(state) self.TeamCheckEnabled = state end
-
 function ESP:ToggleName(state) self.NameEnabled = state if not state then for _, d in pairs(self.Drawings) do d.NameText.Visible = false end end end
 function ESP:ToggleDisplayName(state) self.DisplayNameEnabled = state if not state then for _, d in pairs(self.Drawings) do d.NameText.Visible = false end end end
 function ESP:ToggleItem(state) self.ItemEnabled = state if not state then for _, d in pairs(self.Drawings) do d.ItemText.Visible = false end end end
@@ -251,7 +232,6 @@ function ESP:SetBoxFillColor(color) self.BoxFillColor = color for _, d in pairs(
 function ESP:SetTextColor(color) self.TextColor = color for _, d in pairs(self.Drawings) do d.NameText.Color = color d.ItemText.Color = color d.TeamText.Color = color d.DistanceText.Color = color end end
 function ESP:SetTracerColor(color) self.TracerColor = color for _, d in pairs(self.Drawings) do d.TracerLocal.Color = color d.TracerMouse.Color = color d.TracerTop.Color = color d.TracerBottom.Color = color for i = 1, 12 do d.ThreeDLines[i].Color = color end end end
 function ESP:SetStreakColor(color) self.StreakColor = color for _, d in pairs(self.Drawings) do for _, s in ipairs(d.BoxStreaks) do s.Color = color end end end
-function ESP:SetStreakGlowColor(color) self.StreakGlowColor = color for _, d in pairs(self.Drawings) do for _, g in ipairs(d.BoxStreakGlows) do g.Color = color end end end
 function ESP:SetStreakSpeed(speed) self.StreakSpeed = speed end
 
 function ESP:Unload()
@@ -268,20 +248,23 @@ function ESP:Unload()
     self.Drawings = {}
 end
 
+-- Optimized bounds calculation
 local function getCharacterBounds(character)
-    local min = Vector3_new(math_huge, math_huge, math_huge)
-    local max = Vector3_new(-math_huge, -math_huge, -math_huge)
-    local foundPart = false
+    local min, max
     for _, part in ipairs(character:GetChildren()) do
         if part:IsA("BasePart") then
-            foundPart = true
-            local partMin = part.Position - part.Size / 2
-            local partMax = part.Position + part.Size / 2
-            min = Vector3_new(math_min(min.X, partMin.X), math_min(min.Y, partMin.Y), math_min(min.Z, partMin.Z))
-            max = Vector3_new(math_max(max.X, partMax.X), math_max(max.Y, partMax.Y), math_max(max.Z, partMax.Z))
+            local pos = part.Position
+            local sz = part.Size * 0.5
+            local pMin = pos - sz
+            local pMax = pos + sz
+            if min then
+                min = Vector3_new(math_min(min.X, pMin.X), math_min(min.Y, pMin.Y), math_min(min.Z, pMin.Z))
+                max = Vector3_new(math_max(max.X, pMax.X), math_max(max.Y, pMax.Y), math_max(max.Z, pMax.Z))
+            else
+                min, max = pMin, pMax
+            end
         end
     end
-    if not foundPart then return nil end
     return min, max
 end
 
@@ -291,7 +274,8 @@ local function worldToScreen(worldPos)
 end
 
 local function update3DLines(drawings, corners)
-    for i, edge in ipairs(EDGES_3D) do
+    for i = 1, 12 do
+        local edge = EDGES_3D[i]
         local from, to = corners[edge[1]], corners[edge[2]]
         drawings.ThreeDOutlines[i].From = from
         drawings.ThreeDOutlines[i].To = to
@@ -303,7 +287,9 @@ local function update3DLines(drawings, corners)
 end
 
 local function updateCornerBox(drawings, screenMin, screenMax, boxColor)
-    local cornerLen = math_min((screenMax.X - screenMin.X), (screenMax.Y - screenMin.Y)) * 0.25
+    local w = screenMax.X - screenMin.X
+    local h = screenMax.Y - screenMin.Y
+    local cornerLen = math_min(w, h) * 0.25
     local tl = screenMin
     local tr = Vector2_new(screenMax.X, screenMin.Y)
     local bl = Vector2_new(screenMin.X, screenMax.Y)
@@ -320,14 +306,18 @@ local function updateCornerBox(drawings, screenMin, screenMax, boxColor)
         {From = br, To = br - Vector2_new(0, cornerLen)}
     }
 
-    for i, pos in ipairs(positions) do
-        drawings.CornerOutlines[i].From = pos.From
-        drawings.CornerOutlines[i].To = pos.To
-        drawings.CornerOutlines[i].Visible = true
-        drawings.CornerLines[i].From = pos.From
-        drawings.CornerLines[i].To = pos.To
-        drawings.CornerLines[i].Color = boxColor
-        drawings.CornerLines[i].Visible = true
+    for i = 1, 8 do
+        local pos = positions[i]
+        local outline = drawings.CornerOutlines[i]
+        outline.From = pos.From
+        outline.To = pos.To
+        outline.Visible = true
+        
+        local line = drawings.CornerLines[i]
+        line.From = pos.From
+        line.To = pos.To
+        line.Color = boxColor
+        line.Visible = true
     end
 end
 
@@ -335,6 +325,47 @@ local function getTargetScreenPos(character)
     local rootPart = character:FindFirstChild("HumanoidRootPart")
     if not rootPart then return nil, false end
     return worldToScreen(rootPart.Position)
+end
+
+-- Hoisted Streak Tracing logic to save Garbage Collection overhead
+local function getStreakPoints(startDist, length, w, h, screenMin, screenMax)
+    local P = 2 * (w + h)
+    local function mapPoint(p)
+        p = p % P
+        if p < w then return Vector2_new(screenMin.X + p, screenMin.Y) end
+        p = p - w
+        if p < h then return Vector2_new(screenMax.X, screenMin.Y + p) end
+        p = p - h
+        if p < w then return Vector2_new(screenMax.X - p, screenMax.Y) end
+        p = p - w
+        return Vector2_new(screenMin.X, screenMax.Y - p)
+    end
+
+    local points = { mapPoint(startDist) }
+    local d = startDist % P
+    local remaining = length
+    local safety = 0
+    
+    local c1, c2, c3 = w, w + h, 2 * w + h
+    
+    while remaining > 0.05 and safety < 4 do
+        safety = safety + 1
+        local nextCorner = P
+        if c1 > d + 0.05 and c1 < nextCorner then nextCorner = c1 end
+        if c2 > d + 0.05 and c2 < nextCorner then nextCorner = c2 end
+        if c3 > d + 0.05 and c3 < nextCorner then nextCorner = c3 end
+
+        local toCorner = nextCorner - d
+        if remaining <= toCorner then
+            points[#points + 1] = mapPoint(d + remaining)
+            remaining = 0
+        else
+            points[#points + 1] = mapPoint(nextCorner)
+            remaining = remaining - toCorner
+            d = nextCorner % P
+        end
+    end
+    return points
 end
 
 RunService.RenderStepped:Connect(function()
@@ -349,7 +380,6 @@ RunService.RenderStepped:Connect(function()
     local boxOn = ESP.BoxEnabled
     local fillOn = ESP.BoxFillEnabled
     local streakOn = ESP.BoxStreakEnabled
-    local glowOn = ESP.StreakGlowEnabled
     local streakSpeed = ESP.StreakSpeed
 
     for _, player in ipairs(Players:GetPlayers()) do
@@ -369,7 +399,6 @@ RunService.RenderStepped:Connect(function()
             or ESP.TracerLocalEnabled or ESP.TracerMouseEnabled or ESP.TracerTopEnabled or ESP.TracerBottomEnabled
             or ESP.DistanceEnabled or ESP.HealthBarEnabled or ESP.HealthTextEnabled) and isValid
 
-        -- don't allocate Drawing objects for players we won't render
         local drawings = ESP.Drawings[player]
         if not shouldDrawAny then
             if drawings then hideAllDrawings(drawings) end
@@ -387,19 +416,20 @@ RunService.RenderStepped:Connect(function()
             continue
         end
 
-        local corners3D = {
+        local screenCorners = table.create(8)
+        local anyOnScreen = false
+        local idx = 1
+        
+        for _, corner in ipairs({
             Vector3_new(min.X, min.Y, min.Z), Vector3_new(min.X, min.Y, max.Z),
             Vector3_new(min.X, max.Y, min.Z), Vector3_new(min.X, max.Y, max.Z),
             Vector3_new(max.X, min.Y, min.Z), Vector3_new(max.X, min.Y, max.Z),
             Vector3_new(max.X, max.Y, min.Z), Vector3_new(max.X, max.Y, max.Z)
-        }
-
-        local screenCorners = {}
-        local anyOnScreen = false
-        for i, corner in ipairs(corners3D) do
-            local screenPos, onScreen = worldToScreen(corner)
-            screenCorners[i] = screenPos
-            if onScreen then anyOnScreen = true end
+        }) do
+            local sp, on = worldToScreen(corner)
+            screenCorners[idx] = sp
+            if on then anyOnScreen = true end
+            idx = idx + 1
         end
 
         if not anyOnScreen then
@@ -407,11 +437,19 @@ RunService.RenderStepped:Connect(function()
             continue
         end
 
-        local screenMin = Vector2_new(math_huge, math_huge)
-        local screenMax = Vector2_new(-math_huge, -math_huge)
-        for _, corner in ipairs(screenCorners) do
-            screenMin = Vector2_new(math_min(screenMin.X, corner.X), math_min(screenMin.Y, corner.Y))
-            screenMax = Vector2_new(math_max(screenMax.X, corner.X), math_max(screenMax.Y, corner.Y))
+        local screenMin = screenCorners[1]
+        local screenMax = screenCorners[1]
+        for i = 2, 8 do
+            local c = screenCorners[i]
+            screenMin = Vector2_new(math_min(screenMin.X, c.X), math_min(screenMin.Y, c.Y))
+            screenMax = Vector2_new(math_max(screenMax.X, c.X), math_max(screenMax.Y, c.Y))
+        end
+
+        -- Distance & Scaling Logic (500m to 1000m)
+        local dist = math_floor((camPos - rootPart.Position).Magnitude)
+        local scale = 1
+        if dist > 500 then
+            scale = math.max(0.2, 1 - ((dist - 500) / 500) * 0.8)
         end
 
         if boxOn then
@@ -430,93 +468,33 @@ RunService.RenderStepped:Connect(function()
 
                 if w > 0.5 and h > 0.5 then
                     local t = (clock * 0.1 * streakSpeed) % 1
-                    local dist = t * P
+                    local startDist = t * P
 
-                    -- never let the streak be longer than 60% of the outline
-                    -- (fixes streaks "breaking" into chords when zoomed out)
-                    local streakLen = math.min(math.clamp(P * 0.15, 20, 60), P * 0.6)
+                    -- Made the streak significantly shorter (10% to 40% max instead of 15% to 60%)
+                    local streakLen = math.min(math.clamp(P * 0.1, 15, 40), P * 0.4)
 
-                    -- maps a perimeter distance to a screen point,
-                    -- walking tl -> tr -> br -> bl -> back to tl
-                    local function mapPoint(p)
-                        p = p % P
-                        if p < w then return Vector2_new(screenMin.X + p, screenMin.Y) end
-                        p = p - w
-                        if p < h then return Vector2_new(screenMax.X, screenMin.Y + p) end
-                        p = p - h
-                        if p < w then return Vector2_new(screenMax.X - p, screenMax.Y) end
-                        p = p - w
-                        return Vector2_new(screenMin.X, screenMax.Y - p)
-                    end
-
-                    -- perimeter distance of each corner: tr, br, bl, tl
-                    local c1, c2, c3, c4 = w, w + h, 2 * w + h, P
-
-                    -- walks the outline from startDist for `length` px,
-                    -- emitting a point every time it passes a corner,
-                    -- so the streak bends correctly around EVERY corner it crosses
-                    local function traceStreak(startDist, length)
-                        local points = { mapPoint(startDist) }
-                        local d = startDist % P
-                        local remaining = length
-                        local safety = 0
-
-                        while remaining > 0.05 and safety < 8 do
-                            safety = safety + 1
-
-                            local nextCorner = P
-                            if c1 > d + 0.05 and c1 < nextCorner then nextCorner = c1 end
-                            if c2 > d + 0.05 and c2 < nextCorner then nextCorner = c2 end
-                            if c3 > d + 0.05 and c3 < nextCorner then nextCorner = c3 end
-                            if c4 > d + 0.05 and c4 < nextCorner then nextCorner = c4 end
-
-                            local toCorner = nextCorner - d
-                            if remaining <= toCorner then
-                                table.insert(points, mapPoint(d + remaining))
-                                remaining = 0
-                            else
-                                table.insert(points, mapPoint(nextCorner))
-                                remaining = remaining - toCorner
-                                d = nextCorner % P
-                            end
-                        end
-
-                        return points
-                    end
-
-                    local points = traceStreak(dist, streakLen)
+                    local points = getStreakPoints(startDist, streakLen, w, h, screenMin, screenMax)
                     local segments = #points - 1
 
                     for i = 1, STREAK_SEGMENTS do
                         local line = drawings.BoxStreaks[i]
-                        local glow = drawings.BoxStreakGlows[i]
                         if i <= segments then
                             local a, b = points[i], points[i + 1]
                             line.From = a
                             line.To = b
                             line.Visible = true
-                            if glowOn then
-                                glow.From = a
-                                glow.To = b
-                                glow.Visible = true
-                            else
-                                glow.Visible = false
-                            end
                         else
                             line.Visible = false
-                            glow.Visible = false
                         end
                     end
                 else
                     for i = 1, STREAK_SEGMENTS do
                         drawings.BoxStreaks[i].Visible = false
-                        drawings.BoxStreakGlows[i].Visible = false
                     end
                 end
             else
                 for i = 1, STREAK_SEGMENTS do
                     drawings.BoxStreaks[i].Visible = false
-                    drawings.BoxStreakGlows[i].Visible = false
                 end
             end
         else
@@ -524,7 +502,6 @@ RunService.RenderStepped:Connect(function()
             drawings.BoxOutline.Visible = false
             for i = 1, STREAK_SEGMENTS do
                 drawings.BoxStreaks[i].Visible = false
-                drawings.BoxStreakGlows[i].Visible = false
             end
         end
         
@@ -554,14 +531,15 @@ RunService.RenderStepped:Connect(function()
                     name = player.Name
                 end
             end
+            drawings.NameText.Size = math_floor(14 * scale)
             drawings.NameText.Text = name
-            local nameY = screenMin.Y - 5 - drawings.NameText.TextBounds.Y / 2
+            local nameY = screenMin.Y - 5 * scale - drawings.NameText.TextBounds.Y / 2
             
             if ESP.ProfilePictureEnabled then
-                nameY = nameY - 40
+                nameY = nameY - 40 * scale
             end
             
-            drawings.NameText.Position = Vector2_new((screenMin.X + screenMax.X) / 2, nameY)
+            drawings.NameText.Position = Vector2_new((screenMin.X + screenMax.X) * 0.5, nameY)
             drawings.NameText.Visible = true
         else
             drawings.NameText.Visible = false
@@ -579,11 +557,11 @@ RunService.RenderStepped:Connect(function()
                 end)
             end
             if drawings.ProfilePic.Data then
-                local picSize = 35
-                local picX = (screenMin.X + screenMax.X) / 2
-                local picY = screenMin.Y - 45
+                local picSize = 35 * scale
+                local picX = (screenMin.X + screenMax.X) * 0.5
+                local picY = screenMin.Y - 45 * scale
                 drawings.ProfilePic.Size = Vector2_new(picSize, picSize)
-                drawings.ProfilePic.Position = Vector2_new(picX - picSize / 2, picY)
+                drawings.ProfilePic.Position = Vector2_new(picX - picSize * 0.5, picY)
                 drawings.ProfilePic.Visible = true
             else
                 drawings.ProfilePic.Visible = false
@@ -596,13 +574,15 @@ RunService.RenderStepped:Connect(function()
             local toolNames = {}
             for _, child in ipairs(character:GetChildren()) do
                 if child:IsA("Tool") then
-                    table.insert(toolNames, child.Name)
+                    toolNames[#toolNames + 1] = child.Name
                 end
             end
             if #toolNames > 0 then
+                drawings.ItemText.Size = math_floor(13 * scale)
                 drawings.ItemText.Text = table.concat(toolNames, ", ")
                 local textBounds = drawings.ItemText.TextBounds
-                drawings.ItemText.Position = Vector2_new(screenMax.X + 4 + textBounds.X / 2, (screenMin.Y + screenMax.Y) / 2)
+                local itemY = (screenMin.Y + screenMax.Y) * 0.5
+                drawings.ItemText.Position = Vector2_new(screenMax.X + 4 * scale + textBounds.X * 0.5, itemY)
                 drawings.ItemText.Visible = true
             else
                 drawings.ItemText.Visible = false
@@ -620,21 +600,22 @@ RunService.RenderStepped:Connect(function()
                 drawings.TeamText.Text = "Neutral"
                 drawings.TeamText.Color = Color3.fromRGB(255, 255, 255)
             end
+            drawings.TeamText.Size = math_floor(13 * scale)
             
             local itemBounds = drawings.ItemText.TextBounds
             local teamBounds = drawings.TeamText.TextBounds
-            local itemY = (screenMin.Y + screenMax.Y) / 2
+            local itemY = (screenMin.Y + screenMax.Y) * 0.5
             
-            drawings.TeamText.Position = Vector2_new(screenMax.X + 4 + teamBounds.X / 2, itemY + itemBounds.Y + 5)
+            drawings.TeamText.Position = Vector2_new(screenMax.X + 4 * scale + teamBounds.X * 0.5, itemY + itemBounds.Y + 5 * scale)
             drawings.TeamText.Visible = true
         else
             drawings.TeamText.Visible = false
         end
 
         if ESP.DistanceEnabled then
-            local dist = math_floor((camPos - rootPart.Position).Magnitude)
+            drawings.DistanceText.Size = math_floor(13 * scale)
             drawings.DistanceText.Text = dist .. "m"
-            drawings.DistanceText.Position = Vector2_new((screenMin.X + screenMax.X) / 2, screenMax.Y + 4 + drawings.DistanceText.TextBounds.Y / 2)
+            drawings.DistanceText.Position = Vector2_new((screenMin.X + screenMax.X) * 0.5, screenMax.Y + 4 * scale + drawings.DistanceText.TextBounds.Y * 0.5)
             drawings.DistanceText.Visible = true
         else
             drawings.DistanceText.Visible = false
@@ -642,9 +623,9 @@ RunService.RenderStepped:Connect(function()
 
         if ESP.HealthBarEnabled or ESP.HealthTextEnabled then
             local hp = math.clamp(humanoid.Health / math.max(humanoid.MaxHealth, 1), 0, 1)
-            local barWidth = 3
+            local barWidth = 3 * scale
             local barHeight = screenMax.Y - screenMin.Y
-            local barX = screenMin.X - barWidth - 5
+            local barX = screenMin.X - barWidth - 5 * scale
 
             if ESP.HealthBarEnabled then
                 drawings.HealthBarOutline.Size = Vector2_new(barWidth, barHeight) + Vector2_new(2, 2)
@@ -667,10 +648,11 @@ RunService.RenderStepped:Connect(function()
             end
 
             if ESP.HealthTextEnabled then
+                drawings.HealthText.Size = math_floor(13 * scale)
                 drawings.HealthText.Text = "[" .. math_floor(humanoid.Health) .. "]"
                 drawings.HealthText.Color = getHealthColor(hp)
                 local textBounds = drawings.HealthText.TextBounds
-                drawings.HealthText.Position = Vector2_new(screenMax.X + 4 + textBounds.X / 2, screenMin.Y - 2 - textBounds.Y / 2)
+                drawings.HealthText.Position = Vector2_new(screenMax.X + 4 * scale + textBounds.X * 0.5, screenMin.Y - 2 * scale - textBounds.Y * 0.5)
                 drawings.HealthText.Visible = true
             else
                 drawings.HealthText.Visible = false
@@ -721,7 +703,7 @@ RunService.RenderStepped:Connect(function()
             end
 
             if ESP.TracerTopEnabled then
-                drawings.TracerTop.From = Vector2_new(viewportSize.X / 2, 0)
+                drawings.TracerTop.From = Vector2_new(viewportSize.X * 0.5, 0)
                 drawings.TracerTop.To = targetScreen
                 drawings.TracerTop.Visible = true
             else
@@ -729,7 +711,7 @@ RunService.RenderStepped:Connect(function()
             end
 
             if ESP.TracerBottomEnabled then
-                drawings.TracerBottom.From = Vector2_new(viewportSize.X / 2, viewportSize.Y)
+                drawings.TracerBottom.From = Vector2_new(viewportSize.X * 0.5, viewportSize.Y)
                 drawings.TracerBottom.To = targetScreen
                 drawings.TracerBottom.Visible = true
             else
