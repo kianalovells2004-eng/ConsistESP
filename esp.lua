@@ -1,5 +1,5 @@
 -- esp.lua
--- ESP Module - Pure ESP logic, optimized with Team Check & Corner Boxes
+-- ESP Module - Pure ESP logic, optimized with Team Check, Corner Boxes, Display Names, Team Indicator, Profile Pic
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -18,7 +18,10 @@ local ESP = {
     BoxFillEnabled = false,
     TeamCheckEnabled = false,
     NameEnabled = false,
+    DisplayNameEnabled = false,
     ItemEnabled = false,
+    TeamIndicatorEnabled = false,
+    ProfilePictureEnabled = false,
     ThreeDBoxEnabled = false,
     TracerLocalEnabled = false,
     TracerMouseEnabled = false,
@@ -68,6 +71,7 @@ local function createDrawings(player)
         BoxFill = newDrawing("Square", { Color = ESP.BoxFillColor, Thickness = 1, Filled = true, Transparency = 0.6 }),
         NameText = newDrawing("Text", { Color = ESP.TextColor, Size = 14, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = Drawing.Fonts.UI, Transparency = 1 }),
         ItemText = newDrawing("Text", { Color = ESP.TextColor, Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = Drawing.Fonts.UI, Transparency = 1 }),
+        TeamText = newDrawing("Text", { Color = ESP.TextColor, Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = Drawing.Fonts.UI, Transparency = 1 }),
         DistanceText = newDrawing("Text", { Color = ESP.TextColor, Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = Drawing.Fonts.UI, Transparency = 1 }),
         HealthBarOutline = newDrawing("Square", { Color = Color3.fromRGB(0, 0, 0), Thickness = 1.5, Filled = false, Transparency = 0.5 }),
         HealthBarBack = newDrawing("Square", { Color = Color3.fromRGB(0, 0, 0), Thickness = 1, Filled = true, Transparency = 0.6 }),
@@ -77,6 +81,7 @@ local function createDrawings(player)
         ThreeDOutlines = {},
         CornerLines = {},
         CornerOutlines = {},
+        ProfilePic = newDrawing("Image", { Size = Vector2.new(35, 35), Transparency = 1 }),
         TracerLocal = newDrawing("Line", { Color = ESP.TracerColor, Thickness = 1.5, Transparency = 1 }),
         TracerMouse = newDrawing("Line", { Color = ESP.TracerColor, Thickness = 1.5, Transparency = 1 }),
         TracerTop = newDrawing("Line", { Color = ESP.TracerColor, Thickness = 1.5, Transparency = 1 }),
@@ -102,11 +107,13 @@ local function hideAllDrawings(drawings)
     drawings.BoxFill.Visible = false
     drawings.NameText.Visible = false
     drawings.ItemText.Visible = false
+    drawings.TeamText.Visible = false
     drawings.DistanceText.Visible = false
     drawings.HealthBarOutline.Visible = false
     drawings.HealthBarBack.Visible = false
     drawings.HealthBarFill.Visible = false
     drawings.HealthText.Visible = false
+    drawings.ProfilePic.Visible = false
     for i = 1, 12 do
         drawings.ThreeDLines[i].Visible = false
         drawings.ThreeDOutlines[i].Visible = false
@@ -127,7 +134,10 @@ function ESP:Toggle(state)
     self:ToggleCornerBox(state)
     self:ToggleBoxFill(state and self.BoxEnabled)
     self:ToggleName(state)
+    self:ToggleDisplayName(state)
     self:ToggleItem(state)
+    self:ToggleTeamIndicator(state)
+    self:ToggleProfilePicture(state)
     self:Toggle3DBox(state)
     self:ToggleTracerLocal(state)
     self:ToggleTracerMouse(state)
@@ -178,7 +188,10 @@ end
 function ESP:ToggleTeamCheck(state) self.TeamCheckEnabled = state end
 
 function ESP:ToggleName(state) self.NameEnabled = state if not state then for _, d in pairs(self.Drawings) do d.NameText.Visible = false end end end
+function ESP:ToggleDisplayName(state) self.DisplayNameEnabled = state if not state then for _, d in pairs(self.Drawings) do d.NameText.Visible = false end end end
 function ESP:ToggleItem(state) self.ItemEnabled = state if not state then for _, d in pairs(self.Drawings) do d.ItemText.Visible = false end end end
+function ESP:ToggleTeamIndicator(state) self.TeamIndicatorEnabled = state if not state then for _, d in pairs(self.Drawings) do d.TeamText.Visible = false end end end
+function ESP:ToggleProfilePicture(state) self.ProfilePictureEnabled = state if not state then for _, d in pairs(self.Drawings) do d.ProfilePic.Visible = false end end end
 function ESP:Toggle3DBox(state) self.ThreeDBoxEnabled = state if not state then for _, d in pairs(self.Drawings) do for i = 1, 12 do d.ThreeDLines[i].Visible = false d.ThreeDOutlines[i].Visible = false end end end end
 function ESP:ToggleTracerLocal(state) self.TracerLocalEnabled = state if not state then for _, d in pairs(self.Drawings) do d.TracerLocal.Visible = false end end end
 function ESP:ToggleTracerMouse(state) self.TracerMouseEnabled = state if not state then for _, d in pairs(self.Drawings) do d.TracerMouse.Visible = false end end end
@@ -193,7 +206,7 @@ function ESP:ClearCustomName(playerName) self.CustomNames[playerName] = nil end
 
 function ESP:SetBoxColor(color) self.BoxColor = color for _, d in pairs(self.Drawings) do d.Box.Color = color for i=1,8 do d.CornerLines[i].Color = color end end end
 function ESP:SetBoxFillColor(color) self.BoxFillColor = color for _, d in pairs(self.Drawings) do d.BoxFill.Color = color end end
-function ESP:SetTextColor(color) self.TextColor = color for _, d in pairs(self.Drawings) do d.NameText.Color = color d.ItemText.Color = color d.DistanceText.Color = color end end
+function ESP:SetTextColor(color) self.TextColor = color for _, d in pairs(self.Drawings) do d.NameText.Color = color d.ItemText.Color = color d.TeamText.Color = color d.DistanceText.Color = color end end
 function ESP:SetTracerColor(color) self.TracerColor = color for _, d in pairs(self.Drawings) do d.TracerLocal.Color = color d.TracerMouse.Color = color d.TracerTop.Color = color d.TracerBottom.Color = color for i = 1, 12 do d.ThreeDLines[i].Color = color end end end
 
 function ESP:Unload()
@@ -298,7 +311,7 @@ RunService.RenderStepped:Connect(function()
         local humanoid = character and character:FindFirstChildOfClass("Humanoid")
         local rootPart = character and character:FindFirstChild("HumanoidRootPart")
         local isValid = character and humanoid and humanoid.Health > 0 and rootPart
-        local shouldDrawAny = (ESP.BoxEnabled or ESP.CornerBoxEnabled or ESP.BoxFillEnabled or ESP.NameEnabled or ESP.ItemEnabled or ESP.ThreeDBoxEnabled
+        local shouldDrawAny = (ESP.BoxEnabled or ESP.CornerBoxEnabled or ESP.BoxFillEnabled or ESP.NameEnabled or ESP.DisplayNameEnabled or ESP.ItemEnabled or ESP.TeamIndicatorEnabled or ESP.ProfilePictureEnabled or ESP.ThreeDBoxEnabled
             or ESP.TracerLocalEnabled or ESP.TracerMouseEnabled or ESP.TracerTopEnabled or ESP.TracerBottomEnabled
             or ESP.DistanceEnabled or ESP.HealthBarEnabled or ESP.HealthTextEnabled) and isValid
 
@@ -376,15 +389,56 @@ RunService.RenderStepped:Connect(function()
             drawings.BoxFill.Visible = false
         end
 
-        if ESP.NameEnabled then
-            local name = ESP.CustomNames[player.Name] or player.Name
+        -- Name / Display Name
+        if ESP.NameEnabled or ESP.DisplayNameEnabled then
+            local name = ESP.CustomNames[player.Name]
+            if not name then
+                if ESP.DisplayNameEnabled then
+                    name = player.DisplayName
+                else
+                    name = player.Name
+                end
+            end
             drawings.NameText.Text = name
-            drawings.NameText.Position = Vector2.new((screenMin.X + screenMax.X) / 2, screenMin.Y - 5 - drawings.NameText.TextBounds.Y / 2)
+            local nameY = screenMin.Y - 5 - drawings.NameText.TextBounds.Y / 2
+            
+            if ESP.ProfilePictureEnabled then
+                nameY = nameY - 40 -- Move name up if picture is drawn above it
+            end
+            
+            drawings.NameText.Position = Vector2.new((screenMin.X + screenMax.X) / 2, nameY)
             drawings.NameText.Visible = true
         else
             drawings.NameText.Visible = false
         end
 
+        -- Profile Picture
+        if ESP.ProfilePictureEnabled then
+            if not drawings.ProfilePic.Data then
+                spawn(function()
+                    local userId = player.UserId
+                    local thumbUrl = Players:GetUserThumbnailAsync(userId, Enum.ThumbnailSize.Size420x420, Enum.ThumbnailType.HeadShot)
+                    local success, data = pcall(function() return game:HttpGet(thumbUrl) end)
+                    if success then
+                        drawings.ProfilePic.Data = data
+                    end
+                end)
+            end
+            if drawings.ProfilePic.Data then
+                local picSize = 35
+                local picX = (screenMin.X + screenMax.X) / 2
+                local picY = screenMin.Y - 45
+                drawings.ProfilePic.Size = Vector2.new(picSize, picSize)
+                drawings.ProfilePic.Position = Vector2.new(picX - picSize / 2, picY)
+                drawings.ProfilePic.Visible = true
+            else
+                drawings.ProfilePic.Visible = false
+            end
+        else
+            drawings.ProfilePic.Visible = false
+        end
+
+        -- Item / Tool ESP
         if ESP.ItemEnabled then
             local toolNames = {}
             for _, child in ipairs(character:GetChildren()) do
@@ -402,6 +456,27 @@ RunService.RenderStepped:Connect(function()
             end
         else
             drawings.ItemText.Visible = false
+        end
+
+        -- Team Indicator (Right side, under Item Text)
+        if ESP.TeamIndicatorEnabled then
+            local team = player.Team
+            if team then
+                drawings.TeamText.Text = team.Name
+                drawings.TeamText.Color = team.TeamColor.Color
+            else
+                drawings.TeamText.Text = "Neutral"
+                drawings.TeamText.Color = Color3.fromRGB(255, 255, 255)
+            end
+            
+            local itemBounds = drawings.ItemText.TextBounds
+            local teamBounds = drawings.TeamText.TextBounds
+            local itemY = (screenMin.Y + screenMax.Y) / 2
+            
+            drawings.TeamText.Position = Vector2.new(screenMax.X + 4 + teamBounds.X / 2, itemY + itemBounds.Y + 5)
+            drawings.TeamText.Visible = true
+        else
+            drawings.TeamText.Visible = false
         end
 
         if ESP.DistanceEnabled then
