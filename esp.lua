@@ -39,6 +39,42 @@ local function newDrawing(type, properties)
     return drawing
 end
 
+-- Health color scheme (based on % of MaxHealth, so 100 = full)
+local HEALTH_COLOR_FULL      = Color3.fromRGB(75, 255, 75)  -- 100     -> bright green
+local HEALTH_COLOR_MIDYELLOW = Color3.fromRGB(255, 255, 0)  -- 70 - 65 -> mid yellow
+local HEALTH_COLOR_ORANGE    = Color3.fromRGB(255, 185, 0)  -- 50 - 45 -> yellowish / more orangey
+local HEALTH_COLOR_RED       = Color3.fromRGB(255, 50, 50)  -- 15 - 10 -> red (stays red below)
+
+local function lerp(a, b, t)
+    return a + (b - a) * t
+end
+
+local function lerpColor(c1, c2, t)
+    return Color3.new(lerp(c1.R, c2.R, t), lerp(c1.G, c2.G, t), lerp(c1.B, c2.B, t))
+end
+
+-- Health fraction (0 - 1) -> color.
+-- Holds the color inside each requested range and blends smoothly between them:
+--   100      -> bright green
+--   70 - 65  -> mid yellow
+--   50 - 45  -> yellowish / more orangey
+--   15 - 10  -> red
+local function getHealthColor(hp)
+    if hp >= 0.70 then
+        return lerpColor(HEALTH_COLOR_MIDYELLOW, HEALTH_COLOR_FULL, (hp - 0.70) / 0.30)
+    elseif hp >= 0.65 then
+        return HEALTH_COLOR_MIDYELLOW
+    elseif hp >= 0.50 then
+        return lerpColor(HEALTH_COLOR_ORANGE, HEALTH_COLOR_MIDYELLOW, (hp - 0.50) / 0.15)
+    elseif hp >= 0.45 then
+        return HEALTH_COLOR_ORANGE
+    elseif hp >= 0.15 then
+        return lerpColor(HEALTH_COLOR_RED, HEALTH_COLOR_ORANGE, (hp - 0.15) / 0.30)
+    else
+        return HEALTH_COLOR_RED
+    end
+end
+
 local function createDrawings(player)
     local drawings = {
         Box = newDrawing("Square", { Color = ESP.BoxColor, Thickness = 1.5, Filled = false, Transparency = 1 }),
@@ -46,8 +82,9 @@ local function createDrawings(player)
         BoxFill = newDrawing("Square", { Color = ESP.BoxFillColor, Thickness = 1, Filled = true, Transparency = 0.6 }),
         NameText = newDrawing("Text", { Color = ESP.TextColor, Size = 14, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = Drawing.Fonts.UI, Transparency = 1 }),
         DistanceText = newDrawing("Text", { Color = ESP.TextColor, Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = Drawing.Fonts.UI, Transparency = 1 }),
+        HealthBarOutline = newDrawing("Square", { Color = Color3.fromRGB(0, 0, 0), Thickness = 1.5, Filled = false, Transparency = 0.5 }),
         HealthBarBack = newDrawing("Square", { Color = Color3.fromRGB(0, 0, 0), Thickness = 1, Filled = true, Transparency = 0.6 }),
-        HealthBarFill = newDrawing("Square", { Color = Color3.fromRGB(0, 255, 0), Thickness = 1, Filled = true, Transparency = 0.3 }),
+        HealthBarFill = newDrawing("Square", { Color = HEALTH_COLOR_FULL, Thickness = 1, Filled = true, Transparency = 0.3 }),
         HealthText = newDrawing("Text", { Color = ESP.TextColor, Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = Drawing.Fonts.UI, Transparency = 1 }),
         ThreeDLines = {},
         ThreeDOutlines = {},
@@ -65,6 +102,26 @@ local function createDrawings(player)
     return drawings
 end
 
+local function hideAllDrawings(drawings)
+    drawings.Box.Visible = false
+    drawings.BoxOutline.Visible = false
+    drawings.BoxFill.Visible = false
+    drawings.NameText.Visible = false
+    drawings.DistanceText.Visible = false
+    drawings.HealthBarOutline.Visible = false
+    drawings.HealthBarBack.Visible = false
+    drawings.HealthBarFill.Visible = false
+    drawings.HealthText.Visible = false
+    for i = 1, 12 do
+        drawings.ThreeDLines[i].Visible = false
+        drawings.ThreeDOutlines[i].Visible = false
+    end
+    drawings.TracerLocal.Visible = false
+    drawings.TracerMouse.Visible = false
+    drawings.TracerTop.Visible = false
+    drawings.TracerBottom.Visible = false
+end
+
 -- Toggle functions
 function ESP:ToggleBox(state) self.BoxEnabled = state if not state then for _, drawings in pairs(self.Drawings) do drawings.Box.Visible = false drawings.BoxOutline.Visible = false end end end
 function ESP:ToggleBoxFill(state) self.BoxFillEnabled = state if not state then for _, drawings in pairs(self.Drawings) do drawings.BoxFill.Visible = false end end end
@@ -75,7 +132,7 @@ function ESP:ToggleTracerMouse(state) self.TracerMouseEnabled = state if not sta
 function ESP:ToggleTracerTop(state) self.TracerTopEnabled = state if not state then for _, drawings in pairs(self.Drawings) do drawings.TracerTop.Visible = false end end end
 function ESP:ToggleTracerBottom(state) self.TracerBottomEnabled = state if not state then for _, drawings in pairs(self.Drawings) do drawings.TracerBottom.Visible = false end end end
 function ESP:ToggleDistance(state) self.DistanceEnabled = state if not state then for _, drawings in pairs(self.Drawings) do drawings.DistanceText.Visible = false end end end
-function ESP:ToggleHealthBar(state) self.HealthBarEnabled = state if not state then for _, drawings in pairs(self.Drawings) do drawings.HealthBarBack.Visible = false drawings.HealthBarFill.Visible = false end end end
+function ESP:ToggleHealthBar(state) self.HealthBarEnabled = state if not state then for _, drawings in pairs(self.Drawings) do drawings.HealthBarOutline.Visible = false drawings.HealthBarBack.Visible = false drawings.HealthBarFill.Visible = false end end end
 function ESP:ToggleHealthText(state) self.HealthTextEnabled = state if not state then for _, drawings in pairs(self.Drawings) do drawings.HealthText.Visible = false end end end
 
 function ESP:SetCustomName(playerName, text) self.CustomNames[playerName] = text end
@@ -83,7 +140,8 @@ function ESP:ClearCustomName(playerName) self.CustomNames[playerName] = nil end
 
 function ESP:SetBoxColor(color) self.BoxColor = color for _, drawings in pairs(self.Drawings) do drawings.Box.Color = color end end
 function ESP:SetBoxFillColor(color) self.BoxFillColor = color for _, drawings in pairs(self.Drawings) do drawings.BoxFill.Color = color end end
-function ESP:SetTextColor(color) self.TextColor = color for _, drawings in pairs(self.Drawings) do drawings.NameText.Color = color drawings.DistanceText.Color = color drawings.HealthText.Color = color end end
+-- Note: HealthText is no longer affected here, its color is health-driven now.
+function ESP:SetTextColor(color) self.TextColor = color for _, drawings in pairs(self.Drawings) do drawings.NameText.Color = color drawings.DistanceText.Color = color end end
 function ESP:SetTracerColor(color) self.TracerColor = color for _, drawings in pairs(self.Drawings) do drawings.TracerLocal.Color = color drawings.TracerMouse.Color = color drawings.TracerTop.Color = color drawings.TracerBottom.Color = color for i = 1, 12 do drawings.ThreeDLines[i].Color = color end end end
 
 function ESP:Toggle(state)
@@ -175,44 +233,13 @@ RunService.RenderStepped:Connect(function()
         end
 
         if not shouldDrawAny then
-            drawings.Box.Visible = false
-            drawings.BoxOutline.Visible = false
-            drawings.BoxFill.Visible = false
-            drawings.NameText.Visible = false
-            drawings.DistanceText.Visible = false
-            drawings.HealthBarBack.Visible = false
-            drawings.HealthBarFill.Visible = false
-            drawings.HealthText.Visible = false
-            for i = 1, 12 do
-                drawings.ThreeDLines[i].Visible = false
-                drawings.ThreeDOutlines[i].Visible = false
-            end
-            drawings.TracerLocal.Visible = false
-            drawings.TracerMouse.Visible = false
-            drawings.TracerTop.Visible = false
-            drawings.TracerBottom.Visible = false
+            hideAllDrawings(drawings)
             continue
         end
 
         local min, max = getCharacterBounds(character)
         if not min or not max then
-            -- hide all drawings and continue
-            drawings.Box.Visible = false
-            drawings.BoxOutline.Visible = false
-            drawings.BoxFill.Visible = false
-            drawings.NameText.Visible = false
-            drawings.DistanceText.Visible = false
-            drawings.HealthBarBack.Visible = false
-            drawings.HealthBarFill.Visible = false
-            drawings.HealthText.Visible = false
-            for i = 1, 12 do
-                drawings.ThreeDLines[i].Visible = false
-                drawings.ThreeDOutlines[i].Visible = false
-            end
-            drawings.TracerLocal.Visible = false
-            drawings.TracerMouse.Visible = false
-            drawings.TracerTop.Visible = false
-            drawings.TracerBottom.Visible = false
+            hideAllDrawings(drawings)
             continue
         end
 
@@ -232,23 +259,7 @@ RunService.RenderStepped:Connect(function()
         end
 
         if not anyOnScreen then
-            -- hide all drawings and continue
-            drawings.Box.Visible = false
-            drawings.BoxOutline.Visible = false
-            drawings.BoxFill.Visible = false
-            drawings.NameText.Visible = false
-            drawings.DistanceText.Visible = false
-            drawings.HealthBarBack.Visible = false
-            drawings.HealthBarFill.Visible = false
-            drawings.HealthText.Visible = false
-            for i = 1, 12 do
-                drawings.ThreeDLines[i].Visible = false
-                drawings.ThreeDOutlines[i].Visible = false
-            end
-            drawings.TracerLocal.Visible = false
-            drawings.TracerMouse.Visible = false
-            drawings.TracerTop.Visible = false
-            drawings.TracerBottom.Visible = false
+            hideAllDrawings(drawings)
             continue
         end
 
@@ -310,6 +321,11 @@ RunService.RenderStepped:Connect(function()
             local barX = screenMin.X - barWidth - 5
 
             if ESP.HealthBarEnabled then
+                -- Outline (same style as the box ESP outline)
+                drawings.HealthBarOutline.Size = Vector2.new(barWidth, barHeight) + Vector2.new(2, 2)
+                drawings.HealthBarOutline.Position = Vector2.new(barX, screenMin.Y) - Vector2.new(1, 1)
+                drawings.HealthBarOutline.Visible = true
+
                 drawings.HealthBarBack.Size = Vector2.new(barWidth, barHeight)
                 drawings.HealthBarBack.Position = Vector2.new(barX, screenMin.Y)
                 drawings.HealthBarBack.Visible = true
@@ -317,21 +333,28 @@ RunService.RenderStepped:Connect(function()
                 local fillHeight = barHeight * hp
                 drawings.HealthBarFill.Size = Vector2.new(barWidth, fillHeight)
                 drawings.HealthBarFill.Position = Vector2.new(barX, screenMax.Y - fillHeight)
-                drawings.HealthBarFill.Color = Color3.fromRGB(255 - 255 * hp, 255 * hp, 0)
+                drawings.HealthBarFill.Color = getHealthColor(hp)
                 drawings.HealthBarFill.Visible = true
             else
+                drawings.HealthBarOutline.Visible = false
                 drawings.HealthBarBack.Visible = false
                 drawings.HealthBarFill.Visible = false
             end
 
             if ESP.HealthTextEnabled then
                 drawings.HealthText.Text = "[" .. math.floor(humanoid.Health) .. "]"
-                drawings.HealthText.Position = Vector2.new(barX - 6 - drawings.HealthText.TextBounds.X / 2, (screenMin.Y + screenMax.Y) / 2)
+                drawings.HealthText.Color = getHealthColor(hp)
+                -- Right side of the box, up near the top of the health bar
+                drawings.HealthText.Position = Vector2.new(
+                    screenMax.X + 4 + drawings.HealthText.TextBounds.X / 2,
+                    screenMin.Y + 2 + drawings.HealthText.TextBounds.Y / 2
+                )
                 drawings.HealthText.Visible = true
             else
                 drawings.HealthText.Visible = false
             end
         else
+            drawings.HealthBarOutline.Visible = false
             drawings.HealthBarBack.Visible = false
             drawings.HealthBarFill.Visible = false
             drawings.HealthText.Visible = false
@@ -409,6 +432,7 @@ Players.PlayerRemoving:Connect(function(player)
         drawings.BoxFill:Remove()
         drawings.NameText:Remove()
         drawings.DistanceText:Remove()
+        drawings.HealthBarOutline:Remove()
         drawings.HealthBarBack:Remove()
         drawings.HealthBarFill:Remove()
         drawings.HealthText:Remove()
