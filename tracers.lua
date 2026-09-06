@@ -1,5 +1,5 @@
 -- tracers.lua
--- Bullet Tracers Logic Module (Replicated Vape Logic)
+-- Bullet Tracers Logic Module (Metatable Hook for Custom Gun Games)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -20,120 +20,67 @@ local BulletTracers = {
     drawingobjs = {}
 }
 
-local toolConns = {}
+local function drawTracer(origin, dir)
+    local velocity = CFrame.lookAt(origin, dir).LookVector * 1000
+    
+    if BulletTracers.DrawingToggle then
+        local obj = Drawing.new('Line')
+        obj.Thickness = 2
+        obj.Color = BulletTracers.Color
+        BulletTracers.drawingobjs[obj] = {origin, origin + velocity, os.clock()}
+        task.delay(BulletTracers.Lifetime, function()
+            BulletTracers.drawingobjs[obj] = nil
+            obj.Visible = false
+            obj:Remove()
+        end)
+    else
+        local obj = Instance.new('Part')
+        obj.Size = Vector3.new(0.1, 0.1, velocity.Magnitude)
+        obj.CFrame = CFrame.lookAt(origin + (velocity / 2), origin + velocity)
+        obj.CanCollide = false
+        obj.CanQuery = false
+        obj.Anchored = true
+        obj.Material = Enum.Material[BulletTracers.Material] or Enum.Material.SmoothPlastic
+        obj.Color = BulletTracers.Color
+        obj.Transparency = 1 - BulletTracers.Opacity
+        obj.Parent = workspace
+        
+        if BulletTracers.Fade then
+            local tween = TweenService:Create(obj, TweenInfo.new(BulletTracers.Lifetime), { Transparency = 1 })
+            tween.Completed:Connect(function() tween:Destroy() end)
+            tween:Play()
+        end
 
-local function clearToolConns()
-    for _, conn in pairs(toolConns) do
-        conn:Disconnect()
+        task.delay(BulletTracers.Lifetime, obj.Destroy, obj)
     end
-    toolConns = {}
 end
 
-local function setupTools()
-    clearToolConns()
-    local char = LocalPlayer.Character
-    if char then
-        for _, child in ipairs(char:GetChildren()) do
-            if child:IsA("Tool") then
-                toolConns[child] = child.Activated:Connect(function()
-                    if not BulletTracers.Enabled then return end
-                    
-                    local origin = child.Handle and child.Handle.Position or Camera.CFrame.Position
-                    if child:FindFirstChild("Muzzle") then
-                        origin = child.Muzzle.Position
-                    end
-
-                    local dir = Mouse.Hit.Position
-                    local velocity = CFrame.lookAt(origin, dir).LookVector * 1000
-                    
-                    if BulletTracers.DrawingToggle then
-                        local obj = Drawing.new('Line')
-                        obj.Thickness = 2
-                        obj.Color = BulletTracers.Color
-                        BulletTracers.drawingobjs[obj] = {origin, origin + velocity, os.clock()}
-                        task.delay(BulletTracers.Lifetime, function()
-                            BulletTracers.drawingobjs[obj] = nil
-                            obj.Visible = false
-                            obj:Remove()
-                        end)
-                    else
-                        local obj = Instance.new('Part')
-                        obj.Size = Vector3.new(0.1, 0.1, velocity.Magnitude)
-                        obj.CFrame = CFrame.lookAt(origin + (velocity / 2), origin + velocity)
-                        obj.CanCollide = false
-                        obj.CanQuery = false
-                        obj.Anchored = true
-                        obj.Material = Enum.Material[BulletTracers.Material] or Enum.Material.SmoothPlastic
-                        obj.Color = BulletTracers.Color
-                        obj.Transparency = 1 - BulletTracers.Opacity
-                        obj.Parent = workspace
-                        
-                        if BulletTracers.Fade then
-                            local tween = TweenService:Create(obj, TweenInfo.new(BulletTracers.Lifetime), { Transparency = 1 })
-                            tween.Completed:Connect(function() tween:Destroy() end)
-                            tween:Play()
-                        end
-
-                        task.delay(BulletTracers.Lifetime, obj.Destroy, obj)
-                    end
-                end)
+-- Hook FireServer to intercept gun shots in custom games (like Prison Life)
+local oldNamecall
+oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+    local method = getnamecallmethod()
+    local args = {...}
+    
+    if BulletTracers.Enabled and method == "FireServer" and self:IsA("RemoteEvent") then
+        local tool = self.Parent
+        -- Check if the remote belongs to a tool currently held by the player
+        if tool and tool:IsA("Tool") and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild(tool.Name) then
+            local remoteName = string.lower(self.Name)
+            -- Most games use "ShootEvent", "Fire", "ShootGun", etc.
+            if remoteName:find("shoot") or remoteName:find("fire") then
+                local origin = tool:FindFirstChild("Muzzle") and tool.Muzzle.Position or (tool:FindFirstChild("Handle") and tool.Handle.Position)
+                -- The first argument is usually the mouse hit position (Vector3)
+                local dir = args[1] 
+                
+                if origin and dir and typeof(dir) == "Vector3" then
+                    drawTracer(origin, dir)
+                end
             end
         end
-        
-        toolConns["ChildAdded"] = char.ChildAdded:Connect(function(child)
-            if child:IsA("Tool") then
-                toolConns[child] = child.Activated:Connect(function()
-                    if not BulletTracers.Enabled then return end
-                    
-                    local origin = child.Handle and child.Handle.Position or Camera.CFrame.Position
-                    if child:FindFirstChild("Muzzle") then
-                        origin = child.Muzzle.Position
-                    end
-
-                    local dir = Mouse.Hit.Position
-                    local velocity = CFrame.lookAt(origin, dir).LookVector * 1000
-                    
-                    if BulletTracers.DrawingToggle then
-                        local obj = Drawing.new('Line')
-                        obj.Thickness = 2
-                        obj.Color = BulletTracers.Color
-                        BulletTracers.drawingobjs[obj] = {origin, origin + velocity, os.clock()}
-                        task.delay(BulletTracers.Lifetime, function()
-                            BulletTracers.drawingobjs[obj] = nil
-                            obj.Visible = false
-                            obj:Remove()
-                        end)
-                    else
-                        local obj = Instance.new('Part')
-                        obj.Size = Vector3.new(0.1, 0.1, velocity.Magnitude)
-                        obj.CFrame = CFrame.lookAt(origin + (velocity / 2), origin + velocity)
-                        obj.CanCollide = false
-                        obj.CanQuery = false
-                        obj.Anchored = true
-                        obj.Material = Enum.Material[BulletTracers.Material] or Enum.Material.SmoothPlastic
-                        obj.Color = BulletTracers.Color
-                        obj.Transparency = 1 - BulletTracers.Opacity
-                        obj.Parent = workspace
-                        
-                        if BulletTracers.Fade then
-                            local tween = TweenService:Create(obj, TweenInfo.new(BulletTracers.Lifetime), { Transparency = 1 })
-                            tween.Completed:Connect(function() tween:Destroy() end)
-                            tween:Play()
-                        end
-
-                        task.delay(BulletTracers.Lifetime, obj.Destroy, obj)
-                    end
-                end)
-            end
-        end)
     end
-end
-
-LocalPlayer.CharacterAdded:Connect(function()
-    task.wait(1)
-    setupTools()
-end)
-setupTools()
+    
+    return oldNamecall(self, ...)
+end))
 
 RunService.RenderStepped:Connect(function()
     if BulletTracers.Enabled and BulletTracers.DrawingToggle then
@@ -179,7 +126,6 @@ function BulletTracers:SetDrawing(state) self.DrawingToggle = state end
 
 function BulletTracers:Unload()
     self:Toggle(false)
-    clearToolConns()
 end
 
 return BulletTracers
