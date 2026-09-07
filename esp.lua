@@ -31,7 +31,8 @@ local ESP = {
     NameEnabled = false,
     DisplayNameEnabled = false,
     ItemEnabled = false,
-    HostileEnabled = false, -- New Hostile toggle
+    HostileEnabled = false,
+    ForcefieldEnabled = false, -- New Forcefield toggle
     TeamIndicatorEnabled = false,
     ThreeDBoxEnabled = false,
     BodyTracerEnabled = false,
@@ -84,6 +85,7 @@ local function createDrawings(player)
         BoxFill = newDrawing("Square", { Color = ESP.BoxFillColor, Thickness = 1, Filled = true, Transparency = 0.6 }),
         NameText = newDrawing("Text", { Color = ESP.TextColor, Size = 14, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = font, Transparency = 1 }),
         HostileText = newDrawing("Text", { Color = Color3.fromRGB(255, 50, 50), Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = font, Transparency = 1 }),
+        ForcefieldText = newDrawing("Text", { Color = HEALTH_COLOR_ORANGE, Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = font, Transparency = 1 }),
         ItemText = newDrawing("Text", { Color = ESP.TextColor, Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = font, Transparency = 1 }),
         TeamText = newDrawing("Text", { Color = ESP.TextColor, Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = font, Transparency = 1 }),
         DistanceText = newDrawing("Text", { Color = ESP.TextColor, Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = font, Transparency = 1 }),
@@ -125,6 +127,7 @@ local function hideAllDrawings(drawings)
     drawings.BoxFill.Visible = false
     drawings.NameText.Visible = false
     drawings.HostileText.Visible = false
+    drawings.ForcefieldText.Visible = false
     drawings.ItemText.Visible = false
     drawings.TeamText.Visible = false
     drawings.DistanceText.Visible = false
@@ -215,12 +218,20 @@ function ESP:ToggleTeamColor(state) self.TeamColorEnabled = state end
 function ESP:ToggleName(state) self.NameEnabled = state if not state then for _, d in pairs(self.Drawings) do d.NameText.Visible = false end end end
 function ESP:ToggleDisplayName(state) self.DisplayNameEnabled = state if not state then for _, d in pairs(self.Drawings) do d.NameText.Visible = false end end end
 
--- ADDED THE MISSING FUNCTION HERE
 function ESP:ToggleHostile(state) 
     self.HostileEnabled = state 
     if not state then 
         for _, d in pairs(self.Drawings) do 
             d.HostileText.Visible = false 
+        end 
+    end 
+end
+
+function ESP:ToggleForcefield(state) 
+    self.ForcefieldEnabled = state 
+    if not state then 
+        for _, d in pairs(self.Drawings) do 
+            d.ForcefieldText.Visible = false 
         end 
     end 
 end
@@ -411,7 +422,7 @@ RunService.RenderStepped:Connect(function()
         local humanoid = character and character:FindFirstChildOfClass("Humanoid")
         local rootPart = character and character:FindFirstChild("HumanoidRootPart")
         local isValid = character and humanoid and humanoid.Health > 0 and rootPart
-        local shouldDrawAny = (boxOn or ESP.CornerBoxEnabled or fillOn or streakOn or ESP.NameEnabled or ESP.DisplayNameEnabled or ESP.ItemEnabled or ESP.HostileEnabled or ESP.TeamIndicatorEnabled or ESP.ThreeDBoxEnabled
+        local shouldDrawAny = (boxOn or ESP.CornerBoxEnabled or fillOn or streakOn or ESP.NameEnabled or ESP.DisplayNameEnabled or ESP.ItemEnabled or ESP.HostileEnabled or ESP.ForcefieldEnabled or ESP.TeamIndicatorEnabled or ESP.ThreeDBoxEnabled
             or ESP.BodyTracerEnabled or ESP.TracerMouseEnabled or ESP.TracerTopEnabled or ESP.TracerBottomEnabled
             or ESP.DistanceEnabled or ESP.HealthBarEnabled or ESP.HealthTextEnabled) and isValid
 
@@ -570,7 +581,7 @@ RunService.RenderStepped:Connect(function()
             drawings.NameText.Visible = false
         end
 
-        -- Right-side Text Stacking Logic (Hostile -> Item -> Team -> Distance)
+        -- Right-side Text Stacking Logic (Hostile -> Forcefield -> Item -> Team -> Distance)
         local rightX = screenMax.X + 4 * scale
         local centerY = (screenMin.Y + screenMax.Y) * 0.5
         local gap = 4 * scale
@@ -578,18 +589,32 @@ RunService.RenderStepped:Connect(function()
 
         -- Hostile Indicator (Top)
         if ESP.HostileEnabled then
-            -- Match exact logic from Vape: entity.Character:GetAttribute('Hostile')
             local isHostile = character:GetAttribute("Hostile") == true or player:GetAttribute("Hostile") == true
             if isHostile then
                 drawings.HostileText.Size = getTextSize(13, scale)
                 drawings.HostileText.Text = "Hostile"
                 drawings.HostileText.Visible = true
-                table.insert(itemsToStack, 1, drawings.HostileText) -- Force to the very top
+                table.insert(itemsToStack, drawings.HostileText)
             else
                 drawings.HostileText.Visible = false
             end
         else
             drawings.HostileText.Visible = false
+        end
+
+        -- Forcefield Indicator (Above Tool)
+        if ESP.ForcefieldEnabled then
+            local hasForcefield = character:FindFirstChildOfClass("ForceField")
+            if hasForcefield then
+                drawings.ForcefieldText.Size = getTextSize(13, scale)
+                drawings.ForcefieldText.Text = "Forcefield"
+                drawings.ForcefieldText.Visible = true
+                table.insert(itemsToStack, drawings.ForcefieldText)
+            else
+                drawings.ForcefieldText.Visible = false
+            end
+        else
+            drawings.ForcefieldText.Visible = false
         end
 
         if ESP.ItemEnabled then
