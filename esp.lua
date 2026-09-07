@@ -582,7 +582,11 @@ RunService.RenderStepped:Connect(function()
             end
             drawings.NameText.Size = getTextSize(14, scale)
             drawings.NameText.Text = name
-            drawings.NameText.Color = pColor
+            
+            -- Moving Purple Gradient Effect
+            local t = (math.sin(clock * 1.5) + 1) / 2
+            drawings.NameText.Color = lerpColor(Color3.fromRGB(255, 255, 255), Color3.fromRGB(170, 0, 255), t)
+            
             local nameY = screenMin.Y - 5 * scale - drawings.NameText.TextBounds.Y / 2
             
             drawings.NameText.Position = Vector2_new((screenMin.X + screenMax.X) * 0.5, nameY)
