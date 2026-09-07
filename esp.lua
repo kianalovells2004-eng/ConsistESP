@@ -78,7 +78,8 @@ local function getHealthColor(hp)
 end
 
 local function createDrawings(player)
-    local font = Drawing.Fonts.Monospace 
+    -- Changed to Plex for a softer, easier to read look
+    local font = Drawing.Fonts.Plex 
     local drawings = {
         Box = newDrawing("Square", { Color = ESP.BoxColor, Thickness = 1.5, Filled = false, Transparency = 1 }),
         BoxOutline = newDrawing("Square", { Color = Color3.fromRGB(0, 0, 0), Thickness = 1.5, Filled = false, Transparency = 0.5 }),
