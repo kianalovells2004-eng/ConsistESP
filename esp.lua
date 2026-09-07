@@ -32,7 +32,7 @@ local ESP = {
     DisplayNameEnabled = false,
     ItemEnabled = false,
     HostileEnabled = false,
-    ForcefieldEnabled = false, -- New Forcefield toggle
+    ForcefieldEnabled = false, 
     TeamIndicatorEnabled = false,
     ThreeDBoxEnabled = false,
     BodyTracerEnabled = false,
@@ -394,6 +394,16 @@ local function getTextSize(baseSize, scale)
     return math.max(11, math_floor(baseSize * scale))
 end
 
+-- 20-minute cache clearing for performance
+task.spawn(function()
+    while true do
+        task.wait(1200) -- 1200 seconds = 20 minutes
+        pcall(function()
+            collectgarbage("collect")
+        end)
+    end
+end)
+
 RunService.RenderStepped:Connect(function()
     if not ESP.Enabled then return end
 
@@ -641,10 +651,11 @@ RunService.RenderStepped:Connect(function()
             local team = player.Team
             if team then
                 drawings.TeamText.Text = team.Name
-                drawings.TeamText.Color = pColor
+                -- Make team indicator ALWAYS the color of the team
+                drawings.TeamText.Color = team.TeamColor.Color
             else
                 drawings.TeamText.Text = "Neutral"
-                drawings.TeamText.Color = pColor
+                drawings.TeamText.Color = Color3.fromRGB(255, 255, 255)
             end
             drawings.TeamText.Size = getTextSize(13, scale)
             drawings.TeamText.Visible = true
