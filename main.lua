@@ -187,6 +187,16 @@ leftSection:AddToggle({
     end
 })
 
+
+leftSection:AddToggle({
+    Name = "Forcefield Indicator",
+    Flag = "ForcefieldIndicator",
+    Value = false,
+    Callback = function(value)
+        ESP:ToggleForcefield(value)
+    end
+})
+
 -- 6. Right Section (Tracers)
 local rightSection = mainTab:CreateSection({
     Name = "Tracers",
