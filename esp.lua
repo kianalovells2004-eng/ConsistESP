@@ -1,8 +1,9 @@
 -- esp.lua
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local Workspace = game:GetService("Workspace") 
+local Workspace = game:GetService("Workspace")
 local UserInputService = game:GetService("UserInputService")
+local GuiService = game:GetService("GuiService")
 
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
@@ -10,14 +11,25 @@ local Camera = Workspace.CurrentCamera
 local math_min, math_max, math_floor, math_huge = math.min, math.max, math.floor, math.huge
 local Vector2_new, Vector3_new = Vector2.new, Vector3.new
 
-local STREAK_SEGMENTS = 4 
+local STREAK_SEGMENTS = 4
 
--- 3D box edges (hoisted so it isn't rebuilt every frame)
+-- 3D box edges (used for both 3D box drawing and near-plane clipping)
 local EDGES_3D = {
     {1,2},{2,4},{4,3},{3,1},
     {5,6},{6,8},{8,7},{7,5},
     {1,5},{2,6},{3,7},{4,8}
 }
+
+-- Font: Inconsolata with Monospace fallback
+local ESP_FONT
+do
+    local ok, font = pcall(function()
+        return Drawing.Fonts.Inconsolata
+    end)
+    ESP_FONT = (ok and font) or Drawing.Fonts.Monospace
+end
+
+local NEAR_PLANE_DIST = 0.5
 
 local ESP = {
     Enabled = false,
@@ -27,12 +39,12 @@ local ESP = {
     BoxStreakEnabled = false,
     StreakSpeed = 1,
     TeamCheckEnabled = false,
-    TeamColorEnabled = false, 
+    TeamColorEnabled = false,
     NameEnabled = false,
     DisplayNameEnabled = false,
     ItemEnabled = false,
     HostileEnabled = false,
-    ForcefieldEnabled = false, 
+    ForcefieldEnabled = false,
     TeamIndicatorEnabled = false,
     ThreeDBoxEnabled = false,
     BodyTracerEnabled = false,
@@ -78,8 +90,7 @@ local function getHealthColor(hp)
 end
 
 local function createDrawings(player)
-    -- Changed to Plex for a softer, easier to read look
-    local font = Drawing.Fonts.Plex 
+    local font = ESP_FONT
     local drawings = {
         Box = newDrawing("Square", { Color = ESP.BoxColor, Thickness = 1.5, Filled = false, Transparency = 1 }),
         BoxOutline = newDrawing("Square", { Color = Color3.fromRGB(0, 0, 0), Thickness = 1.5, Filled = false, Transparency = 0.5 }),
@@ -216,25 +227,37 @@ end
 
 function ESP:ToggleTeamCheck(state) self.TeamCheckEnabled = state end
 function ESP:ToggleTeamColor(state) self.TeamColorEnabled = state end
-function ESP:ToggleName(state) self.NameEnabled = state if not state then for _, d in pairs(self.Drawings) do d.NameText.Visible = false end end end
-function ESP:ToggleDisplayName(state) self.DisplayNameEnabled = state if not state then for _, d in pairs(self.Drawings) do d.NameText.Visible = false end end end
 
-function ESP:ToggleHostile(state) 
-    self.HostileEnabled = state 
-    if not state then 
-        for _, d in pairs(self.Drawings) do 
-            d.HostileText.Visible = false 
-        end 
-    end 
+function ESP:ToggleName(state)
+    self.NameEnabled = state
+    if not state and not self.DisplayNameEnabled then
+        for _, d in pairs(self.Drawings) do d.NameText.Visible = false end
+    end
 end
 
-function ESP:ToggleForcefield(state) 
-    self.ForcefieldEnabled = state 
-    if not state then 
-        for _, d in pairs(self.Drawings) do 
-            d.ForcefieldText.Visible = false 
-        end 
-    end 
+function ESP:ToggleDisplayName(state)
+    self.DisplayNameEnabled = state
+    if not state and not self.NameEnabled then
+        for _, d in pairs(self.Drawings) do d.NameText.Visible = false end
+    end
+end
+
+function ESP:ToggleHostile(state)
+    self.HostileEnabled = state
+    if not state then
+        for _, d in pairs(self.Drawings) do
+            d.HostileText.Visible = false
+        end
+    end
+end
+
+function ESP:ToggleForcefield(state)
+    self.ForcefieldEnabled = state
+    if not state then
+        for _, d in pairs(self.Drawings) do
+            d.ForcefieldText.Visible = false
+        end
+    end
 end
 
 function ESP:ToggleItem(state) self.ItemEnabled = state if not state then for _, d in pairs(self.Drawings) do d.ItemText.Visible = false end end end
@@ -272,19 +295,34 @@ function ESP:Unload()
     self.Drawings = {}
 end
 
+-- FIX: Rotation-aware character bounds
+-- Computes the actual world-space AABB using each part's CFrame and Size,
+-- correctly handling rotated parts instead of treating them as axis-aligned.
 local function getCharacterBounds(character)
     local min, max
     for _, part in ipairs(character:GetChildren()) do
         if part:IsA("BasePart") then
-            local pos = part.Position
-            local sz = part.Size * 0.5
-            local pMin = pos - sz
-            local pMax = pos + sz
-            if min then
-                min = Vector3_new(math_min(min.X, pMin.X), math_min(min.Y, pMin.Y), math_min(min.Z, pMin.Z))
-                max = Vector3_new(math_max(max.X, pMax.X), math_max(max.Y, pMax.Y), math_max(max.Z, pMax.Z))
-            else
-                min, max = pMin, pMax
+            local cf = part.CFrame
+            local hs = part.Size * 0.5
+            -- Transform all 8 corners of the part's local bounding box into world space
+            local corners = {
+                cf * Vector3_new(-hs.X, -hs.Y, -hs.Z),
+                cf * Vector3_new(-hs.X, -hs.Y,  hs.Z),
+                cf * Vector3_new(-hs.X,  hs.Y, -hs.Z),
+                cf * Vector3_new(-hs.X,  hs.Y,  hs.Z),
+                cf * Vector3_new( hs.X, -hs.Y, -hs.Z),
+                cf * Vector3_new( hs.X, -hs.Y,  hs.Z),
+                cf * Vector3_new( hs.X,  hs.Y, -hs.Z),
+                cf * Vector3_new( hs.X,  hs.Y,  hs.Z)
+            }
+            for _, corner in ipairs(corners) do
+                if min then
+                    min = Vector3_new(math_min(min.X, corner.X), math_min(min.Y, corner.Y), math_min(min.Z, corner.Z))
+                    max = Vector3_new(math_max(max.X, corner.X), math_max(max.Y, corner.Y), math_max(max.Z, corner.Z))
+                else
+                    min = corner
+                    max = corner
+                end
             end
         end
     end
@@ -296,24 +334,109 @@ local function worldToScreen(worldPos)
     return Vector2_new(screenPos.X, screenPos.Y), onScreen
 end
 
-local function update3DLines(drawings, corners, color)
+-- FIX: Near-plane clipping for behind-camera projection
+-- Instead of projecting all 8 corners blindly (which produces garbage when
+-- corners are behind the camera), we:
+--   1. Only project corners that are in front of the near plane
+--   2. For edges that cross the near plane, compute the intersection point
+--      and project that instead
+-- This prevents giant/inverted/flickering boxes near the camera plane.
+local function computeScreenBounds(worldCorners)
+    local camCF = Camera.CFrame
+    local camPos = camCF.Position
+    local camLook = camCF.LookVector
+
+    local screenCorners = {}
+    local cornerInFront = {}
+    local anyInFront = false
+    local points = {}
+
+    -- Phase 1: Project all in-front corners
+    for i, corner in ipairs(worldCorners) do
+        local z = (corner - camPos):Dot(camLook)
+        local inFront = z >= NEAR_PLANE_DIST
+        cornerInFront[i] = inFront
+
+        if inFront then
+            anyInFront = true
+            local sp = worldToScreen(corner)
+            screenCorners[i] = sp
+            points[#points + 1] = sp
+        else
+            screenCorners[i] = nil
+        end
+    end
+
+    if not anyInFront then
+        return nil, nil, screenCorners, cornerInFront, false
+    end
+
+    -- Phase 2: Clip edges that cross the near plane
+    for _, edge in ipairs(EDGES_3D) do
+        local p1 = worldCorners[edge[1]]
+        local p2 = worldCorners[edge[2]]
+        local d1 = (p1 - camPos):Dot(camLook) - NEAR_PLANE_DIST
+        local d2 = (p2 - camPos):Dot(camLook) - NEAR_PLANE_DIST
+
+        -- Only clip if the edge crosses the near plane
+        if (d1 >= 0) ~= (d2 >= 0) then
+            local denom = d1 - d2
+            if math.abs(denom) > 1e-6 then
+                local t = d1 / denom
+                local clipP = p1 + (p2 - p1) * t
+                local sp = worldToScreen(clipP)
+                points[#points + 1] = sp
+            end
+        end
+    end
+
+    if #points == 0 then
+        return nil, nil, screenCorners, cornerInFront, false
+    end
+
+    -- Compute 2D AABB from all projected points
+    local sMin = points[1]
+    local sMax = points[1]
+    for i = 2, #points do
+        local c = points[i]
+        sMin = Vector2_new(math_min(sMin.X, c.X), math_min(sMin.Y, c.Y))
+        sMax = Vector2_new(math_max(sMax.X, c.X), math_max(sMax.Y, c.Y))
+    end
+
+    return sMin, sMax, screenCorners, cornerInFront, true
+end
+
+-- FIX: 3D box lines now handle behind-camera corners
+-- Lines with a behind-camera endpoint are hidden instead of drawn with
+-- garbage projected coordinates.
+local function update3DLines(drawings, screenCorners, cornerInFront, color)
     for i = 1, 12 do
         local edge = EDGES_3D[i]
-        local from, to = corners[edge[1]], corners[edge[2]]
-        drawings.ThreeDOutlines[i].From = from
-        drawings.ThreeDOutlines[i].To = to
-        drawings.ThreeDOutlines[i].Visible = true
-        drawings.ThreeDLines[i].From = from
-        drawings.ThreeDLines[i].To = to
-        drawings.ThreeDLines[i].Color = color
-        drawings.ThreeDLines[i].Visible = true
+        local idx1, idx2 = edge[1], edge[2]
+
+        if cornerInFront[idx1] and cornerInFront[idx2]
+           and screenCorners[idx1] and screenCorners[idx2] then
+            local from = screenCorners[idx1]
+            local to = screenCorners[idx2]
+            drawings.ThreeDOutlines[i].From = from
+            drawings.ThreeDOutlines[i].To = to
+            drawings.ThreeDOutlines[i].Visible = true
+            drawings.ThreeDLines[i].From = from
+            drawings.ThreeDLines[i].To = to
+            drawings.ThreeDLines[i].Color = color
+            drawings.ThreeDLines[i].Visible = true
+        else
+            drawings.ThreeDOutlines[i].Visible = false
+            drawings.ThreeDLines[i].Visible = false
+        end
     end
 end
 
 local function updateCornerBox(drawings, screenMin, screenMax, boxColor)
     local w = screenMax.X - screenMin.X
     local h = screenMax.Y - screenMin.Y
-    local cornerLen = math_min(w, h) * 0.25
+    -- Minimum corner length so corners don't disappear at extreme distances
+    local cornerLen = math.max(2, math_min(w, h) * 0.25)
     local tl = screenMin
     local tr = Vector2_new(screenMax.X, screenMin.Y)
     local bl = Vector2_new(screenMin.X, screenMax.Y)
@@ -336,7 +459,7 @@ local function updateCornerBox(drawings, screenMin, screenMax, boxColor)
         outline.From = pos.From
         outline.To = pos.To
         outline.Visible = true
-        
+
         local line = drawings.CornerLines[i]
         line.From = pos.From
         line.To = pos.To
@@ -368,9 +491,9 @@ local function getStreakPoints(startDist, length, w, h, screenMin, screenMax)
     local d = startDist % P
     local remaining = length
     local safety = 0
-    
+
     local c1, c2, c3 = w, w + h, 2 * w + h
-    
+
     while remaining > 0.05 and safety < 4 do
         safety = safety + 1
         local nextCorner = P
@@ -391,14 +514,17 @@ local function getStreakPoints(startDist, length, w, h, screenMin, screenMax)
     return points
 end
 
+-- FIX: Lowered minimum from 11 to 6 so distance scaling actually works
+-- At 1000m (scale 0.4): 14*0.4=5.6→6, 13*0.4=5.2→6
+-- Previously everything was forced to 11px, making distant ESP look huge
 local function getTextSize(baseSize, scale)
-    return math.max(11, math_floor(baseSize * scale))
+    return math.max(6, math_floor(baseSize * scale))
 end
 
 -- 20-minute cache clearing for performance
 task.spawn(function()
     while true do
-        task.wait(1200) -- 1200 seconds = 20 minutes
+        task.wait(1200)
         pcall(function()
             collectgarbage("collect")
         end)
@@ -408,8 +534,14 @@ end)
 RunService.RenderStepped:Connect(function()
     if not ESP.Enabled then return end
 
+    -- FIX: Update camera reference every frame to handle camera changes
+    Camera = Workspace.CurrentCamera
+    if not Camera then return end
+
     local clock = os.clock()
-    local mousePos = UserInputService:GetMouseLocation()
+    -- FIX: Subtract GUI inset so mouse position matches WorldToViewportPoint coordinates
+    local guiInset = GuiService:GetGuiInset()
+    local mousePos = UserInputService:GetMouseLocation() - guiInset
     local camPos = Camera.CFrame.Position
     local viewportSize = Camera.ViewportSize
     local localTeam = LocalPlayer.Team
@@ -422,7 +554,7 @@ RunService.RenderStepped:Connect(function()
 
     for _, player in ipairs(Players:GetPlayers()) do
         if player == LocalPlayer then continue end
-        
+
         if ESP.TeamCheckEnabled and localTeam and player.Team == localTeam then
             local drawings = ESP.Drawings[player]
             if drawings then hideAllDrawings(drawings) end
@@ -454,33 +586,29 @@ RunService.RenderStepped:Connect(function()
             continue
         end
 
-        local screenCorners = table.create(8)
-        local anyOnScreen = false
-        local idx = 1
-        
-        for _, corner in ipairs({
+        -- Build 8 world-space corners of the AABB
+        local worldCorners = {
             Vector3_new(min.X, min.Y, min.Z), Vector3_new(min.X, min.Y, max.Z),
             Vector3_new(min.X, max.Y, min.Z), Vector3_new(min.X, max.Y, max.Z),
             Vector3_new(max.X, min.Y, min.Z), Vector3_new(max.X, min.Y, max.Z),
             Vector3_new(max.X, max.Y, min.Z), Vector3_new(max.X, max.Y, max.Z)
-        }) do
-            local sp, on = worldToScreen(corner)
-            screenCorners[idx] = sp
-            if on then anyOnScreen = true end
-            idx = idx + 1
-        end
+        }
 
-        if not anyOnScreen then
+        -- FIX: Use near-plane clipping to compute screen bounds
+        -- This prevents giant/flickering boxes when corners are behind the camera
+        local screenMin, screenMax, screenCorners, cornerInFront, anyVisible = computeScreenBounds(worldCorners)
+
+        if not anyVisible or not screenMin then
             hideAllDrawings(drawings)
             continue
         end
 
-        local screenMin = screenCorners[1]
-        local screenMax = screenCorners[1]
-        for i = 2, 8 do
-            local c = screenCorners[i]
-            screenMin = Vector2_new(math_min(screenMin.X, c.X), math_min(screenMin.Y, c.Y))
-            screenMax = Vector2_new(math_max(screenMax.X, c.X), math_max(screenMax.Y, c.Y))
+        -- Safety: hide if bounds are unreasonably large (camera inside or extremely close to box)
+        local boundsW = screenMax.X - screenMin.X
+        local boundsH = screenMax.Y - screenMin.Y
+        if boundsW > viewportSize.X * 10 or boundsH > viewportSize.Y * 10 then
+            hideAllDrawings(drawings)
+            continue
         end
 
         -- Distance & Scaling Logic (400m to 1000m)
@@ -494,7 +622,7 @@ RunService.RenderStepped:Connect(function()
         local pColor = ESP.TextColor
         local pBoxColor = ESP.BoxColor
         local pTracerColor = ESP.TracerColor
-        
+
         if useTeamColor and player.Team then
             local tColor = player.Team.TeamColor.Color
             pColor = tColor
@@ -511,7 +639,7 @@ RunService.RenderStepped:Connect(function()
             drawings.BoxOutline.Size = boxSize + Vector2_new(2, 2)
             drawings.BoxOutline.Position = screenMin - Vector2_new(1, 1)
             drawings.BoxOutline.Visible = true
-            
+
             if streakOn then
                 local w = boxSize.X
                 local h = boxSize.Y
@@ -554,7 +682,7 @@ RunService.RenderStepped:Connect(function()
                 drawings.BoxStreaks[i].Visible = false
             end
         end
-        
+
         if ESP.CornerBoxEnabled then
             updateCornerBox(drawings, screenMin, screenMax, pBoxColor)
         else
@@ -583,13 +711,13 @@ RunService.RenderStepped:Connect(function()
             end
             drawings.NameText.Size = getTextSize(14, scale)
             drawings.NameText.Text = name
-            
+
             -- Moving Purple Gradient Effect
             local t = (math.sin(clock * 1.5) + 1) / 2
             drawings.NameText.Color = lerpColor(Color3.fromRGB(255, 255, 255), Color3.fromRGB(170, 0, 255), t)
-            
+
             local nameY = screenMin.Y - 5 * scale - drawings.NameText.TextBounds.Y / 2
-            
+
             drawings.NameText.Position = Vector2_new((screenMin.X + screenMax.X) * 0.5, nameY)
             drawings.NameText.Visible = true
         else
@@ -599,7 +727,8 @@ RunService.RenderStepped:Connect(function()
         -- Right-side Text Stacking Logic (Hostile -> Forcefield -> Item -> Team -> Distance)
         local rightX = screenMax.X + 4 * scale
         local centerY = (screenMin.Y + screenMax.Y) * 0.5
-        local gap = 4 * scale
+        -- FIX: Minimum gap so text stacking doesn't crowd at small scales
+        local gap = math.max(1, 4 * scale)
         local itemsToStack = {}
 
         -- Hostile Indicator (Top)
@@ -696,7 +825,8 @@ RunService.RenderStepped:Connect(function()
 
         if ESP.HealthBarEnabled or ESP.HealthTextEnabled then
             local hp = math.clamp(humanoid.Health / math.max(humanoid.MaxHealth, 1), 0, 1)
-            local barWidth = 3 * scale
+            -- FIX: Minimum bar width so health bar doesn't disappear at long distances
+            local barWidth = math.max(2, 3 * scale)
             local barHeight = screenMax.Y - screenMin.Y
             local barX = screenMin.X - barWidth - 5 * scale
 
@@ -725,8 +855,13 @@ RunService.RenderStepped:Connect(function()
                 drawings.HealthText.Text = "[" .. math_floor(humanoid.Health) .. "]"
                 drawings.HealthText.Color = getHealthColor(hp)
                 local textBounds = drawings.HealthText.TextBounds
-                -- Moved to the left of the health bar, level with the top
-                drawings.HealthText.Position = Vector2_new(barX - textBounds.X * 0.5 - 4 * scale, screenMin.Y - textBounds.Y * 0.5)
+                -- FIX: Health text is now vertically centered with the health bar
+                -- instead of being at the top of the box
+                local barCenterY = (screenMin.Y + screenMax.Y) * 0.5
+                drawings.HealthText.Position = Vector2_new(
+                    barX - textBounds.X * 0.5 - 4 * scale,
+                    barCenterY
+                )
                 drawings.HealthText.Visible = true
             else
                 drawings.HealthText.Visible = false
@@ -739,7 +874,7 @@ RunService.RenderStepped:Connect(function()
         end
 
         if ESP.ThreeDBoxEnabled then
-            update3DLines(drawings, screenCorners, pTracerColor)
+            update3DLines(drawings, screenCorners, cornerInFront, pTracerColor)
         else
             for i = 1, 12 do
                 drawings.ThreeDLines[i].Visible = false
