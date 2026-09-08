@@ -13,14 +13,14 @@ local Vector2_new, Vector3_new = Vector2.new, Vector3.new
 
 local STREAK_SEGMENTS = 4
 
--- 3D box edges (used for both 3D box drawing and near-plane clipping)
+
 local EDGES_3D = {
     {1,2},{2,4},{4,3},{3,1},
     {5,6},{6,8},{8,7},{7,5},
     {1,5},{2,6},{3,7},{4,8}
 }
 
--- Font: Inconsolata with Monospace fallback
+
 local ESP_FONT
 do
     local ok, font = pcall(function()
@@ -295,16 +295,14 @@ function ESP:Unload()
     self.Drawings = {}
 end
 
--- FIX: Rotation-aware character bounds
--- Computes the actual world-space AABB using each part's CFrame and Size,
--- correctly handling rotated parts instead of treating them as axis-aligned.
+
 local function getCharacterBounds(character)
     local min, max
     for _, part in ipairs(character:GetChildren()) do
         if part:IsA("BasePart") then
             local cf = part.CFrame
             local hs = part.Size * 0.5
-            -- Transform all 8 corners of the part's local bounding box into world space
+
             local corners = {
                 cf * Vector3_new(-hs.X, -hs.Y, -hs.Z),
                 cf * Vector3_new(-hs.X, -hs.Y,  hs.Z),
@@ -334,13 +332,7 @@ local function worldToScreen(worldPos)
     return Vector2_new(screenPos.X, screenPos.Y), onScreen
 end
 
--- FIX: Near-plane clipping for behind-camera projection
--- Instead of projecting all 8 corners blindly (which produces garbage when
--- corners are behind the camera), we:
---   1. Only project corners that are in front of the near plane
---   2. For edges that cross the near plane, compute the intersection point
---      and project that instead
--- This prevents giant/inverted/flickering boxes near the camera plane.
+
 local function computeScreenBounds(worldCorners)
     local camCF = Camera.CFrame
     local camPos = camCF.Position
@@ -371,14 +363,14 @@ local function computeScreenBounds(worldCorners)
         return nil, nil, screenCorners, cornerInFront, false
     end
 
-    -- Phase 2: Clip edges that cross the near plane
+
     for _, edge in ipairs(EDGES_3D) do
         local p1 = worldCorners[edge[1]]
         local p2 = worldCorners[edge[2]]
         local d1 = (p1 - camPos):Dot(camLook) - NEAR_PLANE_DIST
         local d2 = (p2 - camPos):Dot(camLook) - NEAR_PLANE_DIST
 
-        -- Only clip if the edge crosses the near plane
+
         if (d1 >= 0) ~= (d2 >= 0) then
             local denom = d1 - d2
             if math.abs(denom) > 1e-6 then
@@ -394,7 +386,7 @@ local function computeScreenBounds(worldCorners)
         return nil, nil, screenCorners, cornerInFront, false
     end
 
-    -- Compute 2D AABB from all projected points
+
     local sMin = points[1]
     local sMax = points[1]
     for i = 2, #points do
@@ -406,9 +398,6 @@ local function computeScreenBounds(worldCorners)
     return sMin, sMax, screenCorners, cornerInFront, true
 end
 
--- FIX: 3D box lines now handle behind-camera corners
--- Lines with a behind-camera endpoint are hidden instead of drawn with
--- garbage projected coordinates.
 local function update3DLines(drawings, screenCorners, cornerInFront, color)
     for i = 1, 12 do
         local edge = EDGES_3D[i]
@@ -435,7 +424,7 @@ end
 local function updateCornerBox(drawings, screenMin, screenMax, boxColor)
     local w = screenMax.X - screenMin.X
     local h = screenMax.Y - screenMin.Y
-    -- Minimum corner length so corners don't disappear at extreme distances
+
     local cornerLen = math.max(2, math_min(w, h) * 0.25)
     local tl = screenMin
     local tr = Vector2_new(screenMax.X, screenMin.Y)
@@ -514,14 +503,12 @@ local function getStreakPoints(startDist, length, w, h, screenMin, screenMax)
     return points
 end
 
--- FIX: Lowered minimum from 11 to 6 so distance scaling actually works
--- At 1000m (scale 0.4): 14*0.4=5.6→6, 13*0.4=5.2→6
--- Previously everything was forced to 11px, making distant ESP look huge
+
 local function getTextSize(baseSize, scale)
     return math.max(6, math_floor(baseSize * scale))
 end
 
--- 20-minute cache clearing for performance
+
 task.spawn(function()
     while true do
         task.wait(1200)
@@ -534,12 +521,12 @@ end)
 RunService.RenderStepped:Connect(function()
     if not ESP.Enabled then return end
 
-    -- FIX: Update camera reference every frame to handle camera changes
+
     Camera = Workspace.CurrentCamera
     if not Camera then return end
 
     local clock = os.clock()
-    -- FIX: Subtract GUI inset so mouse position matches WorldToViewportPoint coordinates
+
     local guiInset = GuiService:GetGuiInset()
     local mousePos = UserInputService:GetMouseLocation() - guiInset
     local camPos = Camera.CFrame.Position
@@ -586,7 +573,6 @@ RunService.RenderStepped:Connect(function()
             continue
         end
 
-        -- Build 8 world-space corners of the AABB
         local worldCorners = {
             Vector3_new(min.X, min.Y, min.Z), Vector3_new(min.X, min.Y, max.Z),
             Vector3_new(min.X, max.Y, min.Z), Vector3_new(min.X, max.Y, max.Z),
@@ -594,8 +580,7 @@ RunService.RenderStepped:Connect(function()
             Vector3_new(max.X, max.Y, min.Z), Vector3_new(max.X, max.Y, max.Z)
         }
 
-        -- FIX: Use near-plane clipping to compute screen bounds
-        -- This prevents giant/flickering boxes when corners are behind the camera
+   
         local screenMin, screenMax, screenCorners, cornerInFront, anyVisible = computeScreenBounds(worldCorners)
 
         if not anyVisible or not screenMin then
@@ -603,7 +588,7 @@ RunService.RenderStepped:Connect(function()
             continue
         end
 
-        -- Safety: hide if bounds are unreasonably large (camera inside or extremely close to box)
+      
         local boundsW = screenMax.X - screenMin.X
         local boundsH = screenMax.Y - screenMin.Y
         if boundsW > viewportSize.X * 10 or boundsH > viewportSize.Y * 10 then
@@ -611,14 +596,14 @@ RunService.RenderStepped:Connect(function()
             continue
         end
 
-        -- Distance & Scaling Logic (400m to 1000m)
+
         local dist = math_floor((camPos - rootPart.Position).Magnitude)
         local scale = 1
         if dist > 400 then
             scale = math.max(0.4, 1 - ((dist - 400) / 600) * 0.6)
         end
 
-        -- Team Color Logic
+
         local pColor = ESP.TextColor
         local pBoxColor = ESP.BoxColor
         local pTracerColor = ESP.TracerColor
@@ -724,14 +709,14 @@ RunService.RenderStepped:Connect(function()
             drawings.NameText.Visible = false
         end
 
-        -- Right-side Text Stacking Logic (Hostile -> Forcefield -> Item -> Team -> Distance)
+      
         local rightX = screenMax.X + 4 * scale
         local centerY = (screenMin.Y + screenMax.Y) * 0.5
-        -- FIX: Minimum gap so text stacking doesn't crowd at small scales
+
         local gap = math.max(1, 4 * scale)
         local itemsToStack = {}
 
-        -- Hostile Indicator (Top)
+      
         if ESP.HostileEnabled then
             local isHostile = character:GetAttribute("Hostile") == true or player:GetAttribute("Hostile") == true
             if isHostile then
@@ -746,7 +731,7 @@ RunService.RenderStepped:Connect(function()
             drawings.HostileText.Visible = false
         end
 
-        -- Forcefield Indicator (Above Tool)
+   
         if ESP.ForcefieldEnabled then
             local hasForcefield = character:FindFirstChildOfClass("ForceField")
             if hasForcefield then
@@ -785,7 +770,7 @@ RunService.RenderStepped:Connect(function()
             local team = player.Team
             if team then
                 drawings.TeamText.Text = team.Name
-                -- Make team indicator ALWAYS the color of the team
+
                 drawings.TeamText.Color = team.TeamColor.Color
             else
                 drawings.TeamText.Text = "Neutral"
@@ -808,14 +793,13 @@ RunService.RenderStepped:Connect(function()
             drawings.DistanceText.Visible = false
         end
 
-        -- Calculate total height of the stack
         local totalHeight = 0
         for _, textObj in ipairs(itemsToStack) do
             totalHeight = totalHeight + textObj.TextBounds.Y
         end
         totalHeight = totalHeight + gap * (#itemsToStack - 1)
 
-        -- Start Y so that the stack is vertically centered on the right side
+   
         local currentY = centerY - totalHeight * 0.5
         for _, textObj in ipairs(itemsToStack) do
             local boundsY = textObj.TextBounds.Y
@@ -825,7 +809,6 @@ RunService.RenderStepped:Connect(function()
 
         if ESP.HealthBarEnabled or ESP.HealthTextEnabled then
             local hp = math.clamp(humanoid.Health / math.max(humanoid.MaxHealth, 1), 0, 1)
-            -- FIX: Minimum bar width so health bar doesn't disappear at long distances
             local barWidth = math.max(2, 3 * scale)
             local barHeight = screenMax.Y - screenMin.Y
             local barX = screenMin.X - barWidth - 5 * scale
@@ -855,8 +838,7 @@ RunService.RenderStepped:Connect(function()
                 drawings.HealthText.Text = "[" .. math_floor(humanoid.Health) .. "]"
                 drawings.HealthText.Color = getHealthColor(hp)
                 local textBounds = drawings.HealthText.TextBounds
-                -- FIX: Health text is now vertically centered with the health bar
-                -- instead of being at the top of the box
+               
                 local barCenterY = (screenMin.Y + screenMax.Y) * 0.5
                 drawings.HealthText.Position = Vector2_new(
                     barX - textBounds.X * 0.5 - 4 * scale,
